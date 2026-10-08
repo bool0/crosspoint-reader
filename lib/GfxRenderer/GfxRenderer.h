@@ -110,6 +110,9 @@ class GfxRenderer {
   // fontId unchanged. The whole string is routed as a unit so each draw/measure
   // call stays single-font (consistent bit depth, metrics, wrapping).
   int resolveTextFontId(int fontId, const char* text, EpdFontFamily::Style style) const;
+  // The SD font whose advance table serves layout for fontId: itself, or its
+  // registered SD fallback when fontId is a built-in font.
+  int sdLayoutFontId(int fontId) const;
 
   // Batch-load `text`'s glyphs into an SD-card font's resident mini tables
   // before a per-glyph measure/draw loop runs. Called when resolveTextFontId

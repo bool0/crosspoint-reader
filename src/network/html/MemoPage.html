@@ -1,0 +1,659 @@
+<!DOCTYPE html>
+<!-- SPDX-License-Identifier: Apache-2.0 | Copyright 2026 The InkDesk Authors -->
+<html>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>CrossPoint Memos</title>
+    <style>
+      :root {
+        --font-color: #333;
+        --bg: #f5f5f5;
+        --title-color: #2c3e50;
+        --card-bg: #FFF;
+        --label-color: #7f8c8d;
+        --border-color: #ddd;
+        --accent-color: rgb(110, 154, 130);
+        --accent-hover-color: #5a8c73;
+        --danger-color: #c0392b;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --font-color: #f5f5f5;
+          --bg: #333;
+          --title-color: #ecf0f1;
+          --card-bg: #444;
+          --label-color: #bdc3c7;
+          --border-color: #555;
+          color-scheme: dark;
+        }
+      }
+      * { box-sizing: border-box; }
+      [hidden] { display: none !important; }
+      body {
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto,
+          "PingFang SC", "Microsoft YaHei", sans-serif;
+        max-width: 800px;
+        margin: 0 auto;
+        padding: 16px;
+        background-color: var(--bg);
+        color: var(--font-color);
+      }
+      h1 {
+        color: var(--title-color);
+        border-bottom: 2px solid var(--accent-color);
+        padding-bottom: 10px;
+        font-size: 1.5em;
+      }
+      .nav-links { margin: 16px 0; display: flex; gap: 6px; flex-wrap: wrap; }
+      .nav-links a {
+        padding: 8px 14px;
+        color: var(--font-color);
+        text-decoration: none;
+        border-radius: 4px;
+      }
+      .nav-links a.active { background-color: var(--accent-color); color: white; }
+      .card {
+        background: var(--card-bg);
+        border-radius: 8px;
+        padding: 16px;
+        margin: 14px 0;
+        box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+      }
+      .memo-list { list-style: none; margin: 0; padding: 0; }
+      .memo-list li {
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        padding: 12px 4px;
+        border-bottom: 1px solid var(--border-color);
+        cursor: pointer;
+      }
+      .memo-list li:last-child { border-bottom: none; }
+      .memo-list li.selected { font-weight: 600; color: var(--accent-color); }
+      .memo-list .handle {
+        touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none;
+        padding: 4px 10px 4px 2px; margin: -8px 0; font-size: 20px; line-height: 1; color: var(--label-color);
+      }
+      .memo-list li.dragging { opacity: 0.6; background: var(--bg); border-radius: 6px; }
+      .memo-list .name { flex: 1; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+      .badge {
+        font-size: 0.75em;
+        padding: 2px 8px;
+        border-radius: 10px;
+        background: var(--accent-color);
+        color: white;
+        white-space: nowrap;
+      }
+      .empty { color: var(--label-color); margin: 4px 0; }
+      label { display: block; font-weight: 600; color: var(--label-color); margin: 10px 0 6px; }
+      input[type="text"], textarea {
+        width: 100%;
+        padding: 10px;
+        font-size: 16px;
+        border: 1px solid var(--border-color);
+        border-radius: 6px;
+        background: var(--bg);
+        color: var(--font-color);
+        font-family: inherit;
+      }
+      textarea { min-height: 45vh; resize: vertical; line-height: 1.5; }
+      .row { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 12px; align-items: center; }
+      button {
+        padding: 10px 16px;
+        font-size: 15px;
+        border: none;
+        border-radius: 6px;
+        background: var(--accent-color);
+        color: white;
+        cursor: pointer;
+      }
+      button:hover { background: var(--accent-hover-color); }
+      button.secondary { background: transparent; color: var(--font-color); border: 1px solid var(--border-color); }
+      button.danger { background: var(--danger-color); }
+      button:disabled { opacity: 0.5; cursor: default; }
+      .mode-row { display: flex; justify-content: space-between; align-items: center; gap: 8px; margin: 10px 0 6px; flex-wrap: wrap; }
+      .mode-row label { margin: 0; }
+      .seg { display: inline-flex; border: 1px solid var(--border-color); border-radius: 6px; overflow: hidden; }
+      .seg button { background: transparent; color: var(--font-color); border-radius: 0; padding: 6px 14px; }
+      .seg button.on { background: var(--accent-color); color: white; }
+      .toolbar { display: flex; gap: 6px; flex-wrap: wrap; margin-bottom: 6px; }
+      .toolbar button { padding: 6px 10px; font-size: 14px; background: transparent; color: var(--font-color); border: 1px solid var(--border-color); }
+      .preview { min-height: 45vh; padding: 10px 12px; border: 1px solid var(--border-color); border-radius: 6px; background: var(--bg); line-height: 1.6; overflow-wrap: anywhere; }
+      .preview h1, .preview h2, .preview h3 { margin: 0.4em 0 0.2em; }
+      .preview h1 { border-bottom: 1px solid var(--border-color); }
+      .preview p { margin: 0.2em 0; }
+      .preview ul { margin: 0.2em 0; padding-left: 1.4em; }
+      .preview li.task { list-style: none; margin-left: -1.4em; }
+      .preview li.task label { display: flex; gap: 8px; align-items: flex-start; font-weight: normal; color: var(--font-color); margin: 4px 0; }
+      .preview li.task input { width: 20px; height: 20px; margin-top: 2px; flex: none; }
+      .preview li.done label span { text-decoration: line-through; opacity: 0.6; }
+      .preview li.task { display: flex; align-items: flex-start; }
+      .preview .item-handle {
+        touch-action: none; cursor: grab; user-select: none; -webkit-user-select: none;
+        padding: 4px 6px 4px 0; font-size: 18px; line-height: 1.3; color: var(--label-color);
+      }
+      .preview li.dragging { opacity: 0.5; }
+      .preview li.drop-before { box-shadow: 0 -3px 0 var(--accent-color); }
+      .preview li.drop-after { box-shadow: 0 3px 0 var(--accent-color); }
+      .preview blockquote { margin: 0.3em 0; padding-left: 10px; border-left: 4px solid var(--border-color); }
+      .preview code { background: var(--card-bg); padding: 0 4px; border-radius: 3px; }
+      .preview hr { border: none; border-top: 2px solid var(--border-color); }
+      .check { display: flex; align-items: center; gap: 8px; margin-top: 12px; color: var(--font-color); font-weight: normal; }
+      .check input { width: 20px; height: 20px; }
+      .status { min-height: 1.4em; margin-top: 10px; color: var(--label-color); }
+      .status.error { color: var(--danger-color); }
+      .header-row { display: flex; justify-content: space-between; align-items: center; }
+      .header-row h2 { margin: 0; color: var(--title-color); font-size: 1.15em; }
+    </style>
+  </head>
+  <body>
+    <h1 data-i18n="title">📝 Memos</h1>
+
+    <div class="nav-links">
+      <a href="/" data-i18n="navHome">Home</a>
+      <a href="/files" data-i18n="navFiles">File Manager</a>
+      <a href="/memo" class="active" data-i18n="navMemos">Memos</a>
+      <a href="/images" data-i18n="navImages">Images</a>
+      <a href="/settings" data-i18n="navSettings">Settings</a>
+      <a href="/fonts" data-i18n="navFonts">Fonts</a>
+    </div>
+
+    <div class="card">
+      <div class="header-row">
+        <h2 data-i18n="listTitle">Memos on device</h2>
+        <button id="new-btn" class="secondary" data-i18n="newMemo">+ New</button>
+      </div>
+      <ul id="memo-list" class="memo-list"></ul>
+      <p id="memo-empty" class="empty" data-i18n="noMemos" hidden>No memos yet.</p>
+    </div>
+
+    <div class="card">
+      <label for="memo-title" data-i18n="titleLabel">Title</label>
+      <input id="memo-title" type="text" maxlength="60" autocomplete="off" />
+      <div class="mode-row">
+        <label for="memo-text" data-i18n="textLabel">Content</label>
+        <div class="seg">
+          <button id="mode-edit" class="on" data-i18n="modeEdit">Edit</button>
+          <button id="mode-preview" data-i18n="modePreview">Preview</button>
+        </div>
+      </div>
+      <div id="toolbar" class="toolbar">
+        <button data-insert="# " data-i18n="tbHeading">Heading</button>
+        <button data-wrap="**"><b>B</b></button>
+        <button data-insert="- " data-i18n="tbList">• List</button>
+        <button data-insert="- [ ] " data-i18n="tbCheck">☐ Checklist</button>
+      </div>
+      <textarea id="memo-text"></textarea>
+      <div id="memo-preview" class="preview" hidden></div>
+      <label class="check"><input id="memo-pin" type="checkbox" /> <span data-i18n="pinLabel">Show on the clock screen</span></label>
+      <div class="row">
+        <button id="save-btn" data-i18n="save">Save to device</button>
+        <button id="delete-btn" class="danger" data-i18n="delete" hidden>Delete</button>
+      </div>
+      <div id="status" class="status"></div>
+    </div>
+
+    <script>
+      const MEMO_DIR = '/memos';
+      const PIN_FILE = MEMO_DIR + '/pinned.cfg';
+      const ORDER_FILE = MEMO_DIR + '/order.cfg';  // one file name per line; the device lists memos in this order
+
+      const STRINGS = {
+        en: {
+          title: '📝 Memos', navHome: 'Home', navFiles: 'File Manager', navMemos: 'Memos', navImages: 'Images',
+          navSettings: 'Settings', navFonts: 'Fonts', listTitle: 'Memos on device', newMemo: '+ New',
+          noMemos: 'No memos yet.', titleLabel: 'Title', textLabel: 'Content',
+          pinLabel: 'Show on the clock screen', save: 'Save to device', delete: 'Delete',
+          onClock: 'On clock', saving: 'Saving…', saved: 'Saved. Open Memos or Clock on the device to see it.',
+          deleted: 'Deleted.', needTitle: 'Please enter a title.', loadFailed: 'Could not load: ',
+          saveFailed: 'Save failed: ', confirmDelete: 'Delete this memo?', untitled: 'Memo',
+          unsaved: 'You have unsaved changes. Discard them?', orderSaved: 'Order saved.', dragHint: 'Drag to reorder',
+          modeEdit: 'Edit', modePreview: 'Preview', tbHeading: 'Heading', tbList: '• List', tbCheck: '☐ Checklist'
+        },
+        zh: {
+          title: '📝 备忘录', navHome: '首页', navFiles: '文件管理', navMemos: '备忘录', navImages: '图片',
+          navSettings: '设置', navFonts: '字体', listTitle: '设备上的备忘录', newMemo: '+ 新建',
+          noMemos: '还没有备忘录。', titleLabel: '标题', textLabel: '内容',
+          pinLabel: '显示在时钟界面', save: '保存到设备', delete: '删除',
+          onClock: '时钟显示', saving: '正在保存…', saved: '已保存。在设备上打开“Memos”或“Clock”即可查看。',
+          deleted: '已删除。', needTitle: '请输入标题。', loadFailed: '读取失败：',
+          saveFailed: '保存失败：', confirmDelete: '确定删除这条备忘录？', untitled: '备忘录',
+          unsaved: '有未保存的修改，确定放弃吗？', orderSaved: '顺序已保存。', dragHint: '拖动排序',
+          modeEdit: '编辑', modePreview: '预览', tbHeading: '标题', tbList: '• 列表', tbCheck: '☐ 清单'
+        }
+      };
+      const lang = (navigator.language || 'en').toLowerCase().startsWith('zh') ? 'zh' : 'en';
+      const t = (key) => STRINGS[lang][key] || STRINGS.en[key];
+      document.documentElement.lang = lang === 'zh' ? 'zh-CN' : 'en';
+      document.querySelectorAll('[data-i18n]').forEach((el) => { el.textContent = t(el.dataset.i18n); });
+
+      const listEl = document.getElementById('memo-list');
+      const emptyEl = document.getElementById('memo-empty');
+      const titleEl = document.getElementById('memo-title');
+      const textEl = document.getElementById('memo-text');
+      const pinEl = document.getElementById('memo-pin');
+      const saveBtn = document.getElementById('save-btn');
+      const deleteBtn = document.getElementById('delete-btn');
+      const statusEl = document.getElementById('status');
+
+      let memos = [];          // file names (with .txt)
+      let pinned = '';         // file name shown on the clock
+      let current = null;      // file name being edited, null for a new memo
+      let savedSnapshot = '\u0000';  // title + '\0' + text as last loaded/saved (empty editor)
+
+      function setStatus(message, isError = false) {
+        statusEl.textContent = message;
+        statusEl.className = 'status' + (isError ? ' error' : '');
+      }
+
+      function titleOf(name) { return name.replace(/\.txt$/i, ''); }
+
+      // FAT-safe file name from a free-form title.
+      function fileNameFor(title) {
+        const clean = title.replace(/[\\/:*?"<>|\u0000-\u001f]/g, ' ').replace(/\s+/g, ' ').trim()
+          .replace(/^\.+/, '').replace(/[. ]+$/, '');
+        return clean ? clean.slice(0, 60) + '.txt' : '';
+      }
+
+      function snapshot() { return titleEl.value + '\u0000' + textEl.value; }
+      function isDirty() { return snapshot() !== savedSnapshot; }
+
+      async function ensureMemoDir() {
+        const res = await fetch('/api/files?path=' + encodeURIComponent(MEMO_DIR));
+        if (res.ok) return res;
+        const body = new URLSearchParams({ name: 'memos', path: '/' });
+        await fetch('/mkdir', { method: 'POST', body });
+        return fetch('/api/files?path=' + encodeURIComponent(MEMO_DIR));
+      }
+
+      async function readText(path) {
+        const res = await fetch('/download?path=' + encodeURIComponent(path));
+        if (!res.ok) throw new Error(res.status + ' ' + res.statusText);
+        return res.text();
+      }
+
+      async function uploadText(dir, name, text) {
+        const form = new FormData();
+        form.append('file', new Blob([text], { type: 'text/plain;charset=utf-8' }), name);
+        const res = await fetch('/upload?path=' + encodeURIComponent(dir), { method: 'POST', body: form });
+        if (!res.ok) throw new Error((await res.text()) || res.status);
+      }
+
+      async function deleteFile(path) {
+        const res = await fetch('/delete', { method: 'POST', body: new URLSearchParams({ path }) });
+        if (!res.ok) throw new Error((await res.text()) || res.status);
+      }
+
+      async function refreshList() {
+        const res = await ensureMemoDir();
+        const files = res.ok ? await res.json() : [];
+        memos = files.filter((f) => !f.isDirectory && /\.txt$/i.test(f.name)).map((f) => f.name)
+          .sort((a, b) => a.localeCompare(b));
+        // Same rule as the device: names in order.cfg first, the rest alphabetically.
+        let order = [];
+        try { order = (await readText(ORDER_FILE)).split('\n').map((s) => s.trim()).filter(Boolean); } catch (e) {}
+        memos = [...order.filter((n) => memos.includes(n)), ...memos.filter((n) => !order.includes(n))];
+        try { pinned = (await readText(PIN_FILE)).trim(); } catch (e) { pinned = ''; }
+        if (!memos.includes(pinned)) pinned = memos[0] || '';
+        renderList();
+      }
+
+      function renderList() {
+        listEl.innerHTML = '';
+        emptyEl.hidden = memos.length > 0;
+        for (const name of memos) {
+          const li = document.createElement('li');
+          li.dataset.name = name;
+          if (name === current) li.className = 'selected';
+          const handle = document.createElement('span');
+          handle.className = 'handle';
+          handle.textContent = '⠿';
+          handle.title = t('dragHint');
+          handle.addEventListener('pointerdown', (e) => startDrag(e, li));
+          handle.addEventListener('click', (e) => e.stopPropagation());
+          li.appendChild(handle);
+          const span = document.createElement('span');
+          span.className = 'name';
+          span.textContent = titleOf(name);
+          li.appendChild(span);
+          if (name === pinned) {
+            const badge = document.createElement('span');
+            badge.className = 'badge';
+            badge.textContent = t('onClock');
+            li.appendChild(badge);
+          }
+          li.onclick = () => openMemo(name);
+          listEl.appendChild(li);
+        }
+      }
+
+      async function saveOrder() {
+        await uploadText(MEMO_DIR, 'order.cfg', memos.join('\n') + '\n');
+      }
+
+      // Pointer-event drag (HTML5 drag-and-drop does not work with touch).
+      function startDrag(e, li) {
+        e.preventDefault();
+        const handle = e.currentTarget;
+        handle.setPointerCapture(e.pointerId);
+        li.classList.add('dragging');
+        const onMove = (ev) => {
+          // Drop slot: before the first other row whose midpoint is below the finger.
+          const others = [...listEl.children].filter((el) => el !== li);
+          const next = others.find((el) => { const r = el.getBoundingClientRect(); return ev.clientY < r.top + r.height / 2; }) || null;
+          if (li.nextSibling !== next) listEl.insertBefore(li, next);
+        };
+        const onUp = async () => {
+          handle.removeEventListener('pointermove', onMove);
+          handle.removeEventListener('pointerup', onUp);
+          handle.removeEventListener('pointercancel', onUp);
+          li.classList.remove('dragging');
+          const order = [...listEl.children].map((el) => el.dataset.name);
+          if (order.join('\n') === memos.join('\n')) return;
+          memos = order;
+          try {
+            await saveOrder();
+            setStatus(t('orderSaved'));
+          } catch (err) {
+            setStatus(t('saveFailed') + err.message, true);
+          }
+        };
+        handle.addEventListener('pointermove', onMove);
+        handle.addEventListener('pointerup', onUp);
+        handle.addEventListener('pointercancel', onUp);
+      }
+
+      function confirmDiscard() { return !isDirty() || confirm(t('unsaved')); }
+
+      async function openMemo(name) {
+        if (name !== current && !confirmDiscard()) return;
+        setStatus('');
+        try {
+          const text = await readText(MEMO_DIR + '/' + name);
+          current = name;
+          titleEl.value = titleOf(name);
+          textEl.value = text.replace(/^﻿/, '');
+          pinEl.checked = name === pinned;
+          deleteBtn.hidden = false;
+          savedSnapshot = snapshot();
+          renderList();
+          setMode(textEl.value.split('\n').some((l) => CHECK_RE.test(l)));
+        } catch (e) {
+          setStatus(t('loadFailed') + e.message, true);
+        }
+      }
+
+      function newMemo() {
+        if (!confirmDiscard()) return;
+        current = null;
+        titleEl.value = '';
+        textEl.value = '';
+        pinEl.checked = memos.length === 0;
+        deleteBtn.hidden = true;
+        savedSnapshot = snapshot();
+        setStatus('');
+        renderList();
+        setMode(false);
+        titleEl.focus();
+      }
+
+      async function saveMemo() {
+        if (!titleEl.value.trim()) titleEl.value = t('untitled') + ' ' + new Date().toLocaleDateString();
+        const name = fileNameFor(titleEl.value);
+        if (!name) { setStatus(t('needTitle'), true); return; }
+        saveBtn.disabled = true;
+        setStatus(t('saving'));
+        try {
+          // Normalize line endings; the device reads plain UTF-8.
+          await uploadText(MEMO_DIR, name, textEl.value.replace(/\r\n?/g, '\n'));
+          if (current && current !== name) await deleteFile(MEMO_DIR + '/' + current);
+          // A renamed memo keeps its place; a new one goes to the end.
+          const at = memos.indexOf(current);
+          if (current && at >= 0) memos[at] = name;
+          else if (!memos.includes(name)) memos.push(name);
+          await saveOrder();
+          const wasPinned = pinned === current;
+          if (pinEl.checked || (wasPinned && current !== name)) {
+            await uploadText(MEMO_DIR, 'pinned.cfg', name);
+          }
+          current = name;
+          titleEl.value = titleOf(name);
+          savedSnapshot = snapshot();
+          deleteBtn.hidden = false;
+          await refreshList();
+          pinEl.checked = pinned === name;
+          setStatus(t('saved'));
+        } catch (e) {
+          setStatus(t('saveFailed') + e.message, true);
+        } finally {
+          saveBtn.disabled = false;
+        }
+      }
+
+      async function deleteMemo() {
+        if (!current || !confirm(t('confirmDelete'))) return;
+        try {
+          await deleteFile(MEMO_DIR + '/' + current);
+          memos = memos.filter((n) => n !== current);
+          await saveOrder();
+          current = null;
+          savedSnapshot = '';
+          titleEl.value = '';
+          textEl.value = '';
+          savedSnapshot = snapshot();
+          deleteBtn.hidden = true;
+          setMode(false);
+          await refreshList();
+          setStatus(t('deleted'));
+        } catch (e) {
+          setStatus(t('saveFailed') + e.message, true);
+        }
+      }
+
+      // --- Markdown preview: the same small dialect the device renders. ---
+      const previewEl = document.getElementById('memo-preview');
+      const toolbarEl = document.getElementById('toolbar');
+      let previewMode = false;
+
+      function escapeHtml(s) {
+        return s.replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+      }
+
+      function inline(src) {
+        const codes = [];
+        let s = src.replace(/\\([\\*_~`\[\]()#>+!-])/g, (m, c) => '\u0000' + codes.push(escapeHtml(c)) + '\u0000');
+        s = s.replace(/`([^`]*)`/g, (m, c) => '\u0000' + codes.push('<code>' + escapeHtml(c) + '</code>') + '\u0000');
+        s = escapeHtml(s)
+          .replace(/(\*\*|__)(.+?)\1/g, '<b>$2</b>')
+          .replace(/\*([^*\s][^*]*)\*/g, '<i>$1</i>')
+          .replace(/~~(.+?)~~/g, '<s>$1</s>')
+          .replace(/\[([^\]]*)\]\(([^)]*)\)/g, '<u>$1</u>');
+        return s.replace(/\u0000(\d+)\u0000/g, (m, i) => codes[i - 1]);
+      }
+
+      const CHECK_RE = /^(\s*)(?:[-*+] )?\[([ xX])\] ?(.*)$/;
+
+      function renderMarkdown(text) {
+        const out = [];
+        let list = false;
+        let item = 0;
+        const closeList = () => { if (list) { out.push('</ul>'); list = false; } };
+        for (const raw of text.split('\n')) {
+          const line = raw.replace(/\s+$/, '');
+          const check = line.match(CHECK_RE);
+          let m;
+          if (check) {
+            if (!list) { out.push('<ul>'); list = true; }
+            const done = check[2] !== ' ';
+            const pad = Math.min(4, Math.floor(check[1].length / 2)) * 1.4;
+            out.push(`<li class="task${done ? ' done' : ''}" data-item="${item}" style="margin-left:${pad - 1.4}em">` +
+              `<span class="item-handle" data-item="${item}">⠿</span><label>` +
+              `<input type="checkbox" data-item="${item++}"${done ? ' checked' : ''}><span>${inline(check[3])}</span></label></li>`);
+          } else if ((m = line.match(/^(\s*)[-*+] (.*)$/))) {
+            if (!list) { out.push('<ul>'); list = true; }
+            out.push(`<li style="margin-left:${Math.min(4, Math.floor(m[1].length / 2)) * 1.4}em">${inline(m[2])}</li>`);
+          } else {
+            closeList();
+            if (!line.trim()) out.push('<p>&nbsp;</p>');
+            else if (/^(-{3,}|\*{3,}|_{3,})$/.test(line.trim())) out.push('<hr>');
+            else if ((m = line.match(/^(#{1,6}) (.*)$/))) out.push(`<h${Math.min(m[1].length, 3)}>${inline(m[2])}</h${Math.min(m[1].length, 3)}>`);
+            else if ((m = line.match(/^> ?(.*)$/))) out.push(`<blockquote>${inline(m[1])}</blockquote>`);
+            else out.push(`<p>${inline(line)}</p>`);
+          }
+        }
+        closeList();
+        return out.join('');
+      }
+
+      // Flips the index-th checklist item in the source, like the device does:
+      // sub-items (indented below it) follow it, and every parent is then
+      // ticked exactly when all of its sub-items are.
+      function toggleItem(text, index) {
+        const lines = text.split('\n');
+        const lead = (l) => l.match(/^\s*/)[0].length;
+        const items = [];
+        lines.forEach((l, i) => { const m = l.match(CHECK_RE); if (m) items.push({ line: i, lead: m[1].length, checked: m[2] !== ' ' }); });
+        if (index < 0 || index >= items.length) return text;
+        items.forEach((it, i) => {
+          let j = i + 1;
+          for (; j < items.length; j++) {
+            let inside = true;
+            for (let l = it.line + 1; l <= items[j].line && inside; l++) inside = !lines[l].trim() || lead(lines[l]) > it.lead;
+            if (!inside) break;
+          }
+          it.end = j;
+        });
+        const state = !items[index].checked;
+        for (let j = index; j < items[index].end; j++) items[j].checked = state;
+        for (let i = items.length - 1; i >= 0; i--) {
+          if (items[i].end === i + 1) continue;
+          items[i].checked = items.slice(i + 1, items[i].end).every((it) => it.checked);
+        }
+        for (const it of items) lines[it.line] = lines[it.line].replace(/\[([ xX])\]/, it.checked ? '[x]' : '[ ]');
+        return lines.join('\n');
+      }
+
+      function setMode(preview) {
+        previewMode = preview;
+        document.getElementById('mode-edit').classList.toggle('on', !preview);
+        document.getElementById('mode-preview').classList.toggle('on', preview);
+        textEl.hidden = preview;
+        toolbarEl.hidden = preview;
+        previewEl.hidden = !preview;
+        if (preview) previewEl.innerHTML = renderMarkdown(textEl.value);
+      }
+
+      // Checklist blocks: an item plus everything indented under it (its sub-items
+      // and their text), without trailing blank lines. parent = enclosing item.
+      function checklistBlocks(lines) {
+        const lead = (l) => l.match(/^\s*/)[0].length;
+        const items = [];
+        lines.forEach((l, i) => { const m = l.match(CHECK_RE); if (m) items.push({ line: i, lead: m[1].length }); });
+        for (const it of items) {
+          let end = it.line + 1;
+          while (end < lines.length && (!lines[end].trim() || lead(lines[end]) > it.lead)) end++;
+          while (end > it.line + 1 && !lines[end - 1].trim()) end--;
+          it.end = end;
+          it.parent = -1;
+          for (let p = items.indexOf(it) - 1; p >= 0; p--) {
+            if (items[p].line < it.line && items[p].end > it.line && items[p].lead < it.lead) { it.parent = p; break; }
+          }
+        }
+        return items;
+      }
+
+      // Moves checklist item `from` (with its sub-items) to `slot` among its siblings.
+      function moveItem(text, from, slot) {
+        const lines = text.split('\n');
+        const items = checklistBlocks(lines);
+        const sibs = items.map((it, i) => i).filter((i) => items[i].parent === items[from].parent);
+        const others = sibs.filter((i) => i !== from);
+        const src = items[from];
+        const block = lines.slice(src.line, src.end);
+        const target = slot < others.length ? items[others[slot]].line : items[others[others.length - 1]].end;
+        if (target === src.line || target === src.end) return text;
+        const rest = [...lines.slice(0, src.line), ...lines.slice(src.end)];
+        const at = target > src.line ? target - block.length : target;
+        rest.splice(at, 0, ...block);
+        return rest.join('\n');
+      }
+
+      previewEl.addEventListener('pointerdown', (e) => {
+        const handle = e.target.closest('.item-handle');
+        if (!handle) return;
+        e.preventDefault();
+        const from = Number(handle.dataset.item);
+        const items = checklistBlocks(textEl.value.split('\n'));
+        const others = items.map((it, i) => i).filter((i) => i !== from && items[i].parent === items[from].parent);
+        if (!others.length) return;
+        const liOf = (i) => previewEl.querySelector(`li[data-item="${i}"]`);
+        const dragged = liOf(from);
+        dragged.classList.add('dragging');
+        try { handle.setPointerCapture(e.pointerId); } catch (err) {}
+        let slot = -1;
+        const clear = () => previewEl.querySelectorAll('.drop-before,.drop-after').forEach((el) => el.classList.remove('drop-before', 'drop-after'));
+        const onMove = (ev) => {
+          slot = others.findIndex((i) => { const r = liOf(i).getBoundingClientRect(); return ev.clientY < r.top + r.height / 2; });
+          if (slot < 0) slot = others.length;
+          clear();
+          if (slot < others.length) liOf(others[slot]).classList.add('drop-before');
+          else liOf(others[others.length - 1]).classList.add('drop-after');
+        };
+        const onUp = async () => {
+          handle.removeEventListener('pointermove', onMove);
+          handle.removeEventListener('pointerup', onUp);
+          handle.removeEventListener('pointercancel', onUp);
+          clear();
+          dragged.classList.remove('dragging');
+          if (slot < 0) return;
+          const moved = moveItem(textEl.value, from, slot);
+          if (moved === textEl.value) return;
+          textEl.value = moved;
+          previewEl.innerHTML = renderMarkdown(textEl.value);
+          if (current) await saveMemo();
+        };
+        handle.addEventListener('pointermove', onMove);
+        handle.addEventListener('pointerup', onUp);
+        handle.addEventListener('pointercancel', onUp);
+      });
+
+      previewEl.addEventListener('change', async (e) => {
+        if (!e.target.matches('input[type=checkbox]')) return;
+        textEl.value = toggleItem(textEl.value, Number(e.target.dataset.item));
+        previewEl.innerHTML = renderMarkdown(textEl.value);
+        // Ticking is a quick action: save right away for memos already on the device.
+        if (current) await saveMemo();
+      });
+
+      toolbarEl.addEventListener('click', (e) => {
+        const btn = e.target.closest('button');
+        if (!btn) return;
+        const v = textEl.value, a = textEl.selectionStart, b = textEl.selectionEnd;
+        if (btn.dataset.wrap) {
+          const w = btn.dataset.wrap;
+          textEl.value = v.slice(0, a) + w + v.slice(a, b) + w + v.slice(b);
+          textEl.setSelectionRange(a + w.length, b + w.length);
+        } else {
+          const lineStart = v.lastIndexOf('\n', a - 1) + 1;
+          const ins = btn.dataset.insert;
+          textEl.value = v.slice(0, lineStart) + ins + v.slice(lineStart);
+          textEl.setSelectionRange(a + ins.length, b + ins.length);
+        }
+        textEl.focus();
+      });
+
+      document.getElementById('mode-edit').onclick = () => setMode(false);
+      document.getElementById('mode-preview').onclick = () => setMode(true);
+
+      document.getElementById('new-btn').onclick = newMemo;
+      saveBtn.onclick = saveMemo;
+      deleteBtn.onclick = deleteMemo;
+      window.addEventListener('beforeunload', (e) => { if (isDirty()) { e.preventDefault(); e.returnValue = ''; } });
+
+      refreshList().then(() => {
+        if (memos.length) openMemo(pinned || memos[0]); else newMemo();
+      }).catch((e) => setStatus(t('loadFailed') + e.message, true));
+    </script>
+  </body>
+</html>

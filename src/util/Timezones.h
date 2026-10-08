@@ -34,4 +34,8 @@ void formatOffset(uint8_t index, char* buf, size_t bufSize);
 // settings load, and again whenever clockTimezone changes.
 void applyToClock();
 
+// When no zone has been chosen yet, adopt the first one whose standard offset
+// matches utcOffsetMinutes, save it and apply it. Returns true if it changed.
+bool adoptOffsetIfUnset(int utcOffsetMinutes);
+
 }  // namespace timezones

@@ -122,6 +122,10 @@ class HalDisplay {
 
   // Runtime geometry passthrough
   uint16_t getDisplayWidth() const;
+  // Fast-waveform refresh of a panel-native, byte-aligned window against the
+  // controller's current baseline. Unlike displayBuffer() it is never promoted
+  // to a clean HALF on a cold panel.
+  void displayWindow(uint16_t x, uint16_t y, uint16_t w, uint16_t h);
   uint16_t getDisplayHeight() const;
   uint16_t getDisplayWidthBytes() const;
   uint32_t getBufferSize() const;

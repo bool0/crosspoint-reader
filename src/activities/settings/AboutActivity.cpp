@@ -109,7 +109,7 @@ void AboutActivity::onEnter() {
   const char* touch = touchControllerName(BoardConfig::ACTIVE.touch.controller);
   rowValues_[ITEM_TOUCH] = touch ? touch : "No";
   rowValues_[ITEM_FRONTLIGHT] = Frontlight.present() ? "Yes" : "No";
-  rowValues_[ITEM_RTC] = halClock.isAvailable() ? "Yes" : "No";
+  rowValues_[ITEM_RTC] = halClock.hasHardwareRtc() ? "Yes" : "No";
   rowValues_[ITEM_IMU] = halTiltSensor.isAvailable() ? "Yes" : "No";
   uint8_t mac[6] = {0};
   esp_read_mac(mac, ESP_MAC_WIFI_STA);

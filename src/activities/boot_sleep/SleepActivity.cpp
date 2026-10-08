@@ -28,6 +28,7 @@
 #include "fontIds.h"
 #include "images/Logo120.h"
 #include "images/MoonIcon.h"
+#include "util/LockScreen.h"
 
 namespace {
 // Metalio: B/W sleep images use the full 0xF7 waveform instead of HALF (two
@@ -521,6 +522,11 @@ void releaseSdFontCachesForDecode(const GfxRenderer& renderer) {
 void SleepActivity::onEnter() {
   Activity::onEnter();
 
+  if (powerOff) {
+    display.setInverted(false);
+    return renderPowerOffScreen();
+  }
+
   const bool renderQuickResume =
       SETTINGS.sleepScreen == CrossPointSettings::SLEEP_SCREEN_MODE::QUICK_RESUME ||
       (fromTimeout &&
@@ -567,6 +573,13 @@ void SleepActivity::onEnter() {
   }
 
   switch (SETTINGS.sleepScreen) {
+    case (CrossPointSettings::SLEEP_SCREEN_MODE::CLOCK):
+      // Without a known time the memo is the next best thing to keep on screen.
+      if (lockscreen::renderClock(renderer) || lockscreen::renderMemo(renderer)) return;
+      return renderDefaultSleepScreen();
+    case (CrossPointSettings::SLEEP_SCREEN_MODE::MEMO):
+      if (lockscreen::renderMemo(renderer)) return;
+      return renderDefaultSleepScreen();
     case (CrossPointSettings::SLEEP_SCREEN_MODE::BLANK):
       return renderBlankSleepScreen();
     case (CrossPointSettings::SLEEP_SCREEN_MODE::CUSTOM):
@@ -579,6 +592,20 @@ void SleepActivity::onEnter() {
       } else {
         return renderCustomSleepScreen();
       }
+    default:
+      return renderDefaultSleepScreen();
+  }
+}
+
+void SleepActivity::renderPowerOffScreen() const {
+  switch (SETTINGS.powerOffScreen) {
+    case CrossPointSettings::POWER_OFF_SCREEN::POWER_OFF_IMAGES:
+      return renderCustomSleepScreen();  // falls back to the default screen without images
+    case CrossPointSettings::POWER_OFF_SCREEN::POWER_OFF_MEMO:
+      if (lockscreen::renderMemo(renderer)) return;
+      return renderDefaultSleepScreen();
+    case CrossPointSettings::POWER_OFF_SCREEN::POWER_OFF_BLANK:
+      return renderBlankSleepScreen();
     default:
       return renderDefaultSleepScreen();
   }

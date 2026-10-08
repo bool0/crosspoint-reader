@@ -523,6 +523,7 @@ void ParsedText::addWord(std::string word, const EpdFontFamily::Style fontStyle,
     // CJK-heavy paragraphs can push hundreds of tiny tokens quickly when CSS toggles
     // inline styles. Reserve once up front to avoid repeated vector growth reallocations.
     ensureTokenCapacity(breakOffsets.size() + 1);
+    cjkTokenCount += breakOffsets.size() + 1;
     bool firstToken = true;
     size_t tokenStart = 0;
     uint32_t tokenVisibleOffset = visibleTextOffset;
@@ -546,6 +547,7 @@ void ParsedText::addWord(std::string word, const EpdFontFamily::Style fontStyle,
   }
 
   if (containsCjkBreakableCodepoint(word)) {
+    cjkTokenCount++;
     pushToken(word, effectiveAttachToPrevious, effectiveNoSpaceBefore, /*focusBoundary=*/0, visibleTextOffset);
     if (wordStartsRtl) {
       hasRtlWord = true;
@@ -1023,6 +1025,51 @@ std::vector<size_t> ParsedText::computeLineBreaks(const GfxRenderer& renderer, c
   }
 
   const size_t totalWordCount = words.size();
+
+  // Chinese/Japanese break between any two characters, so the squared-slack
+  // optimum below happily ends a line early to even out later ones, and
+  // justification then spreads that slack between every character. CJK
+  // typesetting fills each line instead: slack stays under one character.
+  if (cjkTokenCount * 2 >= totalWordCount) {
+    std::vector<size_t> lineBreakIndices;
+    size_t lineStart = 0;
+    bool isFirstLine = true;
+    while (lineStart < totalWordCount) {
+      const int effectivePageWidth = isFirstLine ? pageWidth - firstLineIndent : pageWidth;
+      int lineWidth = 0;
+      size_t end = lineStart;  // one past the last token on this line
+      while (end < totalWordCount) {
+        int gap = 0;
+        if (end > lineStart && continuesVec[end]) {
+          gap = renderer.getKerning(fontId, lastCodepoint(wordAt(end - 1)), firstCodepoint(wordAt(end)),
+                                    wordStyles[end - 1], blockStyle.characterSpacing);
+        } else if (end > lineStart && noSpaceBeforeVec[end]) {
+          gap = blockStyle.characterSpacing;
+        } else if (end > lineStart) {
+          gap = scaleSpace(renderer.getSpaceAdvance(fontId, lastCodepoint(wordAt(end - 1)), firstCodepoint(wordAt(end)),
+                                                    wordStyles[end - 1]),
+                           wordSpacingPercent);
+        }
+        if (end > lineStart && lineWidth + gap + wordWidths[end] > effectivePageWidth) break;
+        lineWidth += gap + wordWidths[end];
+        ++end;
+      }
+      // Never break inside an attached group (e.g. before closing punctuation).
+      size_t breakAt = end;
+      while (breakAt > lineStart + 1 && breakAt < totalWordCount &&
+             !TokenBoundary::allowsBreak(continuesVec[breakAt], noSpaceBeforeVec[breakAt])) {
+        --breakAt;
+      }
+      if (breakAt == lineStart + 1 && end > breakAt && breakAt < totalWordCount &&
+          !TokenBoundary::allowsBreak(continuesVec[breakAt], noSpaceBeforeVec[breakAt])) {
+        breakAt = end;  // the whole line is one group; overflow rather than loop
+      }
+      lineBreakIndices.push_back(breakAt);
+      lineStart = breakAt;
+      isFirstLine = false;
+    }
+    return lineBreakIndices;
+  }
 
   // DP table to store the minimum badness (cost) of lines starting at index i
   std::vector<int> dp(totalWordCount);

@@ -41,6 +41,12 @@ struct Preferences {
 };
 ''',
     "Logging.h": '#pragma once\n#define LOG_DBG(...) ((void)0)\n',
+    "esp_attr.h": '#pragma once\n#define RTC_NOINIT_ATTR\n',
+    "esp_system.h": r'''
+#pragma once
+enum esp_reset_reason_t { ESP_RST_UNKNOWN, ESP_RST_POWERON, ESP_RST_SW, ESP_RST_DEEPSLEEP, ESP_RST_BROWNOUT };
+inline esp_reset_reason_t esp_reset_reason() { return ESP_RST_POWERON; }
+''',
     "esp_sntp.h": r'''
 #pragma once
 #include <Arduino.h>
@@ -57,6 +63,11 @@ CHECK = r'''
 #include <cassert>
 #include <cstring>
 int main() {
+  // A power-on boot starts unsynced; a completed sync or a host-set time counts.
+  trustedtime::init();
+  assert(!trustedtime::syncedSincePowerOn());
+  assert(!trustedtime::setFromHost(100));
+  assert(!trustedtime::syncedSincePowerOn());
   const char* zone = "EST5EDT,M3.2.0,M11.1.0";
   setenv("TZ", zone, 1);
   tzset();
@@ -66,6 +77,7 @@ int main() {
   assert(configurations == 1);
   assert(trustedtime::syncNow(200));
   assert(configurations == 2 && strcmp(getenv("TZ"), zone) == 0);
+  assert(trustedtime::syncedSincePowerOn());
   completed = false;
   assert(!trustedtime::syncNow(200));
   assert(strcmp(getenv("TZ"), zone) == 0);

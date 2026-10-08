@@ -15,6 +15,7 @@
 #include <HalTiltSensor.h>
 #include <I18n.h>
 #include <Logging.h>
+#include <Memory.h>
 #include <SPI.h>
 #include <TrustedTime.h>
 #include <VectorFontSupport.h>
@@ -22,6 +23,7 @@
 #include <XteinkDetect.h>
 #include <builtinFonts/all.h>
 
+#include <algorithm>
 #include <cstring>
 
 #include "CrossPointSettings.h"
@@ -34,11 +36,16 @@
 #include "WifiCredentialStore.h"
 #include "activities/Activity.h"
 #include "activities/ActivityManager.h"
+#include "activities/clock/MemoViewActivity.h"
 #include "activities/settings/SdFirmwareUpdateActivity.h"
+#include "activities/util/BmpViewerActivity.h"
 #include "components/UITheme.h"
 #include "fontIds.h"
+#include "network/SerialFileTransfer.h"
 #include "platform/UsbSerialJtagHandoff.h"
 #include "util/ButtonNavigator.h"
+#include "util/LockScreen.h"
+#include "util/MemoStore.h"
 #include "util/PluginEvents.h"
 #include "util/ScreenshotUtil.h"
 #include "util/Timezones.h"
@@ -60,6 +67,9 @@ FontDecompressor fontDecompressor;
 SdCardFontSystem sdFontSystem;
 FontCacheManager fontCacheManager(renderer.getFontMap(), renderer.getSdCardFonts(), renderer.getTtfFonts());
 static unsigned long allowSleepAt = 0;
+// Holding the power button this long powers the device off instead of locking it.
+constexpr unsigned long POWER_OFF_HINT_MS = 1000;
+constexpr unsigned long POWER_OFF_HOLD_MS = 3000;
 static unsigned long lastX4ProPowerClickAt = 0;
 
 namespace {
@@ -145,7 +155,8 @@ constexpr uint32_t SILENT_REBOOT_TARGET_HOME = 0;
 constexpr uint32_t SILENT_REBOOT_TARGET_READER = 1;
 constexpr uint32_t SILENT_REBOOT_TARGET_SETTINGS = 2;
 constexpr uint32_t SILENT_REBOOT_TARGET_JOIN_NETWORK = 3;
-constexpr uint32_t SILENT_REBOOT_TARGET_MAX = SILENT_REBOOT_TARGET_JOIN_NETWORK;
+constexpr uint32_t SILENT_REBOOT_TARGET_CLOCK = 4;
+constexpr uint32_t SILENT_REBOOT_TARGET_MAX = SILENT_REBOOT_TARGET_CLOCK;
 constexpr uint32_t SILENT_REBOOT_LIGHT_ON = 1U << 0;
 
 // How the device is coming back to life, resolved once at boot. Both resume
@@ -198,6 +209,8 @@ void silentRestart() { silentRestartTo(SILENT_REBOOT_TARGET_HOME, "home"); }
 void silentRestartToReader() { silentRestartTo(SILENT_REBOOT_TARGET_READER, "reader"); }
 
 void silentRestartToSettings() { silentRestartTo(SILENT_REBOOT_TARGET_SETTINGS, "settings"); }
+
+void silentRestartToClock() { silentRestartTo(SILENT_REBOOT_TARGET_CLOCK, "clock"); }
 
 void silentRestartToJoinNetwork() {
   if (deepSleepInProgress) return;
@@ -334,7 +347,9 @@ static void deliverSleepPluginEvents() {
 }
 
 // Enter deep sleep mode
-void enterDeepSleep(bool fromTimeout = false) {
+// powerOff: cut the battery latch and show the power-off screen (no lock-screen
+// clock, no kept time) — the power button held for POWER_OFF_HOLD_MS.
+void enterDeepSleep(bool fromTimeout = false, bool powerOff = false) {
   HalPowerManager::Lock powerLock;  // Ensure we are at normal CPU frequency for sleep preparation
   APP_STATE.lastSleepFromReader = activityManager.isReaderActivity();
 
@@ -345,9 +360,9 @@ void enterDeepSleep(bool fromTimeout = false) {
   deliverSleepPluginEvents();
 
   const bool isQuickResumeSleep =
-      SETTINGS.sleepScreen == CrossPointSettings::SLEEP_SCREEN_MODE::QUICK_RESUME ||
-      (fromTimeout &&
-       SETTINGS.quickResumeSleepScreen == CrossPointSettings::QUICK_RESUME_SLEEP_SCREEN::QUICK_RESUME_AFTER_TIMEOUT);
+      !powerOff && (SETTINGS.sleepScreen == CrossPointSettings::SLEEP_SCREEN_MODE::QUICK_RESUME ||
+                    (fromTimeout && SETTINGS.quickResumeSleepScreen ==
+                                        CrossPointSettings::QUICK_RESUME_SLEEP_SCREEN::QUICK_RESUME_AFTER_TIMEOUT));
   // Every sleep mode leaves a complete retained frame on the e-ink panel. Keep
   // it visible until the first useful reader or home paint replaces it.
   APP_STATE.showBootScreen = false;
@@ -357,7 +372,11 @@ void enterDeepSleep(bool fromTimeout = false) {
   // Commit to sleeping before goToSleep() runs the outgoing activity's onExit():
   // a WiFi activity would otherwise silentRestart() here and reboot instead.
   deepSleepInProgress = true;
-  activityManager.goToSleep(fromTimeout);
+  lockscreen::disarm();  // the clock sleep screen re-arms it while drawing
+  activityManager.goToSleep(fromTimeout, powerOff);
+  const bool lockClock = !powerOff && SETTINGS.sleepScreen == CrossPointSettings::SLEEP_SCREEN_MODE::CLOCK &&
+                         lockscreen::armed() && lockscreen::saveFrame(renderer);
+  if (!lockClock) lockscreen::disarm();
 
   if (isQuickResumeSleep) {
     saveSleepFrameBuffer();
@@ -376,9 +395,10 @@ void enterDeepSleep(bool fromTimeout = false) {
   halTiltSensor.deepSleep();
   display.deepSleep();
   Storage.prepareForDeepSleep();
-  LOG_DBG("MAIN", "Entering deep sleep");
+  LOG_DBG("MAIN", "Entering deep sleep%s", lockClock ? " (clock lock screen)" : "");
 
-  powerManager.startDeepSleep(gpio);
+  powerManager.startDeepSleep(gpio, lockClock ? lockscreen::msToNextMinute() : 0,
+                              !powerOff && SETTINGS.keepTimeInSleep != 0);
 }
 
 void setupDisplayAndFonts(bool seamless = false) {
@@ -427,6 +447,46 @@ void setupDisplayAndFonts(bool seamless = false) {
   LOG_DBG("MAIN", "Fonts setup");
 }
 
+// Timer wake while the clock lock screen is up: repaint the minute and sleep
+// again without bringing up the UI. Restarts into a normal boot when the clock
+// can no longer tick (time lost, setting changed, SD missing).
+static void runLockScreenTick() {
+  struct tm now;
+  if (Storage.begin()) {
+    SETTINGS.loadFromFile();
+    timezones::applyToClock();
+    I18N.setLanguage(static_cast<Language>(SETTINGS.language));
+    halClock.begin();
+    if (SETTINGS.sleepScreen == CrossPointSettings::SLEEP_SCREEN_MODE::CLOCK && halClock.localTime(now)) {
+      bool drawn = false;
+      if (lockscreen::canTick(now)) {
+        display.begin(true);
+        renderer.begin();
+        fontDecompressor.init();
+        fontCacheManager.setFontDecompressor(&fontDecompressor);
+        renderer.setFontCacheManager(&fontCacheManager);
+        renderer.insertFont(UI_12_FONT_ID, ui12FontFamily);
+        if (lockscreen::loadFrame(renderer)) {
+          lockscreen::tick(renderer, now, powerManager.getBatteryPercentage());
+          drawn = true;
+        }
+      } else {
+        // A new day: the date line changes, so draw the whole face again.
+        setupDisplayAndFonts(true);
+        drawn = lockscreen::renderClock(renderer) && lockscreen::saveFrame(renderer);
+      }
+      if (drawn) {
+        display.deepSleep();
+        Storage.prepareForDeepSleep();
+        powerManager.startDeepSleep(gpio, lockscreen::msToNextMinute());
+      }
+    }
+  }
+  LOG_INF("LOCK", "Clock lock screen cannot tick, booting normally");
+  lockscreen::disarm();
+  ESP.restart();
+}
+
 void setup() {
   BoardConfig::holdPowerRails();
 
@@ -459,6 +519,11 @@ void setup() {
 
   gpio.begin();
   powerManager.begin();
+
+  if (esp_sleep_get_wakeup_cause() == ESP_SLEEP_WAKEUP_TIMER && lockscreen::armed()) {
+    runLockScreenTick();  // sleeps again or restarts; never returns
+  }
+  lockscreen::disarm();
 
   const auto wakeupReason = gpio.getWakeupReason();
   // Sample the wake hold now — a click wake is released within milliseconds of
@@ -630,6 +695,8 @@ void setup() {
     // Rebooted on the way *into* File Transfer > Join Network for a fresh heap;
     // resume that flow directly instead of landing on home.
     activityManager.goToJoinNetwork();
+  } else if (resume == BootResume::Silent && snapshotTarget == SILENT_REBOOT_TARGET_CLOCK) {
+    activityManager.goToClock();
   } else if (resume == BootResume::Silent && snapshotTarget == SILENT_REBOOT_TARGET_SETTINGS) {
     // Back out of the WiFi rows and the user is where they left off, not on Home.
     activityManager.goToSettings();
@@ -725,6 +792,7 @@ void loop() {
   if (logSerial.available() > 0) {
     String line = logSerial.readStringUntil('\n');
     if (line.startsWith("CMD:")) {
+      serialfiles::noteHostActivity();
       String cmd = line.substring(4);
       cmd.trim();
       if (cmd == "SCREENSHOT") {
@@ -733,6 +801,95 @@ void loop() {
         uint8_t* buf = display.getFrameBuffer();
         logSerial.write(buf, bufferSize);
         logSerial.printf("SCREENSHOT_END\n");
+      } else if (cmd == "SETUP_ZH") {
+        // Simplified Chinese UI on the WenKai SD font (its CJK glyphs back the UI fallback).
+        SETTINGS.language = static_cast<uint8_t>(Language::ZH);
+        strncpy(SETTINGS.sdFontFamilyName, "WenKai", sizeof(SETTINGS.sdFontFamilyName) - 1);
+        SETTINGS.sdFontFamilyName[sizeof(SETTINGS.sdFontFamilyName) - 1] = '\0';
+        SETTINGS.saveToFile();
+        logSerial.printf("SETUP_OK\n");
+        silentRestart();
+      } else if (cmd == "SLEEPSCREEN") {
+        logSerial.printf("SLEEPSCREEN_OK %d\n", static_cast<int>(SETTINGS.sleepScreen));
+      } else if (cmd.startsWith("SLEEPSCREEN ")) {
+        const int mode = cmd.substring(12).toInt();
+        if (mode >= 0 && mode < CrossPointSettings::SLEEP_SCREEN_MODE_COUNT) {
+          SETTINGS.sleepScreen = static_cast<uint8_t>(mode);
+          SETTINGS.saveToFile();
+          logSerial.printf("SLEEPSCREEN_OK %d\n", mode);
+        }
+      } else if (cmd.startsWith("CLOCKFACE ")) {
+        int style = 0, date = 1, battery = 1, memo = 1, dark = 0;
+        if (sscanf(cmd.c_str() + 10, "%d %d %d %d %d", &style, &date, &battery, &memo, &dark) == 5 && style >= 0 &&
+            style < CrossPointSettings::CLOCK_STYLE_COUNT) {
+          SETTINGS.clockFaceStyle = static_cast<uint8_t>(style);
+          SETTINGS.clockFaceDate = date != 0;
+          SETTINGS.clockFaceBattery = battery != 0;
+          SETTINGS.clockFaceMemo = memo != 0;
+          SETTINGS.clockFaceDark = dark != 0;
+          SETTINGS.saveToFile();
+          activityManager.requestUpdate();
+          logSerial.printf("CLOCKFACE_OK\n");
+        }
+      } else if (cmd == "PREVIEW_POWEROFF") {
+        // Draws the power-off screen without powering off (for screenshots).
+        activityManager.goToSleep(false, /*powerOff=*/true);
+        logSerial.printf("PREVIEW_OK\n");
+      } else if (cmd == "SLEEP") {
+        logSerial.printf("SLEEP_OK\n");
+        enterDeepSleep();
+      } else if (cmd.startsWith("FONT ")) {
+        // "FONT serif" / "FONT sans" pick a built-in family; anything else names an SD family.
+        const String name = cmd.substring(5);
+        if (name == "serif" || name == "sans") {
+          SETTINGS.fontFamily = name == "sans" ? CrossPointSettings::NOTOSANS : CrossPointSettings::NOTOSERIF;
+          SETTINGS.sdFontFamilyName[0] = '\0';
+        } else {
+          strncpy(SETTINGS.sdFontFamilyName, name.c_str(), sizeof(SETTINGS.sdFontFamilyName) - 1);
+          SETTINGS.sdFontFamilyName[sizeof(SETTINGS.sdFontFamilyName) - 1] = '\0';
+        }
+        SETTINGS.saveToFile();
+        logSerial.printf("FONT_OK\n");
+        silentRestart();
+      } else if (cmd.startsWith("OPEN ")) {
+        const String target = cmd.substring(5);
+        if (target == "clock") {
+          activityManager.goToClock();
+        } else if (target == "memos") {
+          activityManager.goToMemos();
+        } else if (target == "book" && !RECENT_BOOKS.getBooks().empty()) {
+          activityManager.goToReader(RECENT_BOOKS.getBooks().front().path);
+        } else if (target == "memo" && !memostore::pinned().empty()) {
+          activityManager.replaceActivity(
+              std::make_unique<MemoViewActivity>(renderer, mappedInputManager, memostore::pinned()));
+        } else if (target.startsWith("/")) {
+          activityManager.replaceActivity(
+              std::make_unique<BmpViewerActivity>(renderer, mappedInputManager, std::string(target.c_str())));
+        } else if (target == "images") {
+          activityManager.goToImages();
+        } else if (target == "usb") {
+          activityManager.goToUsbConnect();
+        } else if (target == "settings") {
+          activityManager.goToSettings();
+        } else {
+          activityManager.goHome();
+        }
+        logSerial.printf("OPEN_OK\n");
+      } else if (serialfiles::handle(cmd)) {
+        // LS / GET / PUT / RM / MKDIR / MV: SD card access for x4usb.py
+      } else if (cmd.startsWith("TIME ")) {
+        // "TIME <utc epoch> [utc offset minutes]" from tools/sync_time.py.
+        long long epoch = 0;
+        int offsetMinutes = 0;
+        const int fields = sscanf(cmd.c_str() + 5, "%lld %d", &epoch, &offsetMinutes);
+        if (fields >= 1 && trustedtime::setFromHost(epoch)) {
+          if (fields == 2) timezones::adoptOffsetIfUnset(offsetMinutes);
+          SETTINGS.clockHasBeenSynced = 1;
+          logSerial.printf("TIME_OK %lld\n", epoch);
+          activityManager.requestUpdate();
+        } else {
+          logSerial.printf("TIME_ERR\n");
+        }
       }
     }
   }
@@ -837,13 +994,36 @@ void loop() {
                                         SETTINGS.shortPwrBtn == CrossPointSettings::SHORT_PWRBTN::SLEEP &&
                                         gpio.getPowerButtonHeldTime() <= X4PRO_POWER_CLICK_MAX_HOLD_MS;
 
+  // Power button: released after the sleep hold -> lock; held on to
+  // POWER_OFF_HOLD_MS -> power off. A hint appears once the hold passes
+  // POWER_OFF_HINT_MS so the user knows to keep holding (or let go to lock).
+  static bool powerHoldArmed = false;
+  static bool powerHoldHinted = false;
   if (!x4ProAwaitingClickWindow && powerReleasedSinceWake && millis() >= allowSleepAt &&
       gpio.isPressed(HalGPIO::BTN_POWER) && gpio.getPowerButtonHeldTime() > SETTINGS.getPowerButtonDuration()) {
     // If the screenshot combination is potentially being pressed, don't sleep
     if (gpio.isPressed(HalGPIO::BTN_DOWN)) {
+      powerHoldArmed = false;
       return;
     }
-    LOG_DBG("MAIN", "Power button held %lums, sleeping", gpio.getPowerButtonHeldTime());
+    powerHoldArmed = true;
+    const unsigned long held = gpio.getPowerButtonHeldTime();
+    if (held >= POWER_OFF_HOLD_MS) {
+      LOG_DBG("MAIN", "Power button held %lums, powering off", held);
+      enterDeepSleep(false, /*powerOff=*/true);
+      return;
+    }
+    if (held >= POWER_OFF_HINT_MS && !powerHoldHinted) {
+      powerHoldHinted = true;
+      RenderLock lock;
+      GUI.drawPopup(renderer, tr(STR_HOLD_TO_POWER_OFF));
+    }
+    return;
+  }
+  if (powerHoldArmed && !gpio.isPressed(HalGPIO::BTN_POWER)) {
+    powerHoldArmed = false;
+    powerHoldHinted = false;
+    LOG_DBG("MAIN", "Power button released after %lums, sleeping", gpio.getPowerButtonHeldTime());
     enterDeepSleep();
     // This should never be hit as `enterDeepSleep` calls esp_deep_sleep_start
     return;
@@ -882,7 +1062,13 @@ void loop() {
   // load); the reader's status bar picks the charging state up on the next
   // page turn instead.
   if (gpio.wasUsbStateChanged() && !activityManager.isReaderActivity()) {
-    activityManager.requestUpdate();
+    // Plugging in opens the USB connection screen, unless reading, on the desk
+    // clock, or while Wi-Fi is up (File Transfer and friends own the screen).
+    if (gpio.isUsbConnected() && activityManager.allowsUsbAutoOpen() && WiFi.getMode() == WIFI_MODE_NULL) {
+      activityManager.goToUsbConnect();
+    } else {
+      activityManager.requestUpdate();
+    }
   }
 
   const unsigned long activityStartTime = millis();

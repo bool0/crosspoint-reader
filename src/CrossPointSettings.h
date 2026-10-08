@@ -25,9 +25,20 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
     BLANK = 5,
     QUICK_RESUME = 6,
     TRANSPARENT_CUSTOM = 7,
+    CLOCK = 8,  // live clock + pinned memo, repainted every minute while asleep
+    MEMO = 9,   // pinned memo, left on the panel after power-off
     SLEEP_SCREEN_MODE_COUNT
   };
   enum SLEEP_SCREEN_COVER_MODE { FIT = 0, CROP = 1, SLEEP_SCREEN_COVER_MODE_COUNT };
+  // Screen left on the panel when the device powers off (power button held 3 s).
+  // No clock option: time stops while the power is cut.
+  enum POWER_OFF_SCREEN {
+    POWER_OFF_IMAGES = 0,
+    POWER_OFF_MEMO,
+    POWER_OFF_DEFAULT,
+    POWER_OFF_BLANK,
+    POWER_OFF_SCREEN_COUNT
+  };
   enum SLEEP_SCREEN_COVER_FILTER {
     NO_FILTER = 0,
     BLACK_AND_WHITE = 1,
@@ -224,6 +235,7 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
 
   // Sleep screen settings
   uint8_t sleepScreen = DARK;
+  uint8_t powerOffScreen = POWER_OFF_MEMO;
   // Night mode: inverted output polarity, applied to every activity per
   // render by ActivityManager. The sleep screen opts out itself.
   uint8_t screenInverted = 0;
@@ -254,6 +266,22 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
   uint8_t clockDst = CLOCK_DST_AUTO;
   // Show the clock opposite the battery in every header band that draws one.
   uint8_t clockShowInHeader = 0;
+  // Clock screen / clock lock screen appearance.
+  enum CLOCK_FACE_STYLE {
+    CLOCK_STYLE_ROUNDED = 0,
+    CLOCK_STYLE_THIN,
+    CLOCK_STYLE_BOLD,
+    CLOCK_STYLE_LCD,
+    CLOCK_STYLE_COUNT
+  };
+  uint8_t clockFaceStyle = CLOCK_STYLE_ROUNDED;
+  uint8_t clockFaceDate = 1;
+  uint8_t clockFaceBattery = 1;
+  uint8_t clockFaceMemo = 1;
+  uint8_t clockFaceDark = 0;
+  // Keep the battery latch on through sleep so the system clock keeps running
+  // (X4 has no RTC). Off restores the stock full power-off.
+  uint8_t keepTimeInSleep = 1;
   // Set once an NTP sync succeeds. Used to skip re-syncing on every WiFi connect.
   // Resetting to 0 (e.g. via the web UI) forces a re-sync on next WiFi connect.
   uint8_t clockHasBeenSynced = 0;

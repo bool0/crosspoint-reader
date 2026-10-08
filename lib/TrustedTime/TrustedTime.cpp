@@ -3,7 +3,9 @@
 #include <Arduino.h>
 #include <Logging.h>
 #include <Preferences.h>
+#include <esp_attr.h>
 #include <esp_sntp.h>
+#include <esp_system.h>
 
 #include <cstdio>
 #include <cstdlib>
@@ -20,6 +22,12 @@ constexpr int64_t MIN_ADVANCE_SECS = 60;
 
 constexpr const char* PREFS_NAMESPACE = "cptime";
 constexpr const char* PREFS_KEY = "floor";
+
+// Set when SNTP lands. RTC no-init memory keeps it across deep sleep and soft
+// restarts, exactly the span over which the system clock itself survives;
+// init() clears it after a power-on, when the memory holds noise.
+constexpr uint32_t SYNCED_MAGIC = 0x5E7C10C5u;
+RTC_NOINIT_ATTR uint32_t syncedMagic;
 
 // Latest time this boot has seen (or restored from NVS). trustedNow() never
 // reports earlier, so a backward clock step (a bad SNTP answer, a manual set)
@@ -53,7 +61,10 @@ void writeFloor(const int64_t value) {
 }
 
 // SNTP sync callback (lwIP task context; Preferences/NVS is mutex-guarded).
-void onTimeSynced(struct timeval*) { note(); }
+void onTimeSynced(struct timeval*) {
+  syncedMagic = SYNCED_MAGIC;
+  note();
+}
 
 void configureSntp() {
   // SNTP uses UTC epochs regardless of the display timezone. Copy TZ before
@@ -67,6 +78,8 @@ void configureSntp() {
 }  // namespace
 
 void init() {
+  const esp_reset_reason_t reason = esp_reset_reason();
+  if (reason == ESP_RST_POWERON || reason == ESP_RST_BROWNOUT || reason == ESP_RST_UNKNOWN) syncedMagic = 0;
   sntp_set_time_sync_notification_cb(&onTimeSynced);
   const int64_t floor = readFloor();
   if (floor < MIN_VALID_EPOCH) return;
@@ -100,7 +113,10 @@ bool syncNow(const uint32_t timeoutMs) {
     delay(100);
   }
   const bool synced = sntp_get_sync_status() == SNTP_SYNC_STATUS_COMPLETED;
-  if (synced) note();
+  if (synced) {
+    syncedMagic = SYNCED_MAGIC;
+    note();
+  }
   return synced;
 }
 
@@ -110,5 +126,16 @@ int64_t trustedNow() {
   const int64_t floor = raiseFloor(now >= MIN_VALID_EPOCH ? now : 0);
   return floor >= MIN_VALID_EPOCH ? floor : 0;
 }
+
+bool setFromHost(const int64_t epochSeconds) {
+  if (epochSeconds < MIN_VALID_EPOCH) return false;
+  timeval tv = {static_cast<time_t>(epochSeconds), 0};
+  settimeofday(&tv, nullptr);
+  syncedMagic = SYNCED_MAGIC;
+  note();
+  return true;
+}
+
+bool syncedSincePowerOn() { return syncedMagic == SYNCED_MAGIC && time(nullptr) >= MIN_VALID_EPOCH; }
 
 }  // namespace trustedtime

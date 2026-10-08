@@ -38,4 +38,14 @@ bool syncNow(uint32_t timeoutMs);
 // an expiry. Callers enforcing a date fail closed on 0.
 int64_t trustedNow();
 
+// True once SNTP has set the system clock since the last power-on. Survives
+// deep sleep and soft restarts (the system clock does too); a power cut clears
+// it. Unlike trustedNow(), a floor restored from NVS does not count: this asks
+// whether the clock is accurate enough to display as wall time.
+bool syncedSincePowerOn();
+
+// Set the clock from a trusted host (e.g. a computer over USB serial). Counts
+// as a sync for syncedSincePowerOn(). Ignores implausible values.
+bool setFromHost(int64_t epochSeconds);
+
 }  // namespace trustedtime

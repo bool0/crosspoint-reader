@@ -42,6 +42,8 @@
 #include "html/FilesPageHtml.generated.h"
 #include "html/FontsPageHtml.generated.h"
 #include "html/HomePageHtml.generated.h"
+#include "html/ImagesPageHtml.generated.h"
+#include "html/MemoPageHtml.generated.h"
 #include "html/RunnerPageHtml.generated.h"
 #include "html/SettingsPageHtml.generated.h"
 #include "html/js/jszip_minJs.generated.h"
@@ -222,6 +224,8 @@ void CrossPointWebServer::begin() {
   server->on("/delete", HTTP_POST, [this] { handleDelete(); });
 
   // Settings endpoints
+  server->on("/memo", HTTP_GET, [this] { handleMemoPage(); });
+  server->on("/images", HTTP_GET, [this] { handleImagesPage(); });
   server->on("/settings", HTTP_GET, [this] { handleSettingsPage(); });
   server->on("/api/settings", HTTP_GET, [this] { handleGetSettings(); });
   server->on("/api/settings", HTTP_POST, [this] { handlePostSettings(); });
@@ -1323,6 +1327,16 @@ void CrossPointWebServer::handleDelete() const {
   } else {
     server->send(500, "text/plain", "Failed to delete some items: " + failedItems);
   }
+}
+
+void CrossPointWebServer::handleImagesPage() const {
+  sendStaticContent(server.get(), ImagesPageHtml, sizeof(ImagesPageHtml), ImagesPageHtmlETag, "text/html");
+  LOG_DBG("WEB", "Served images page");
+}
+
+void CrossPointWebServer::handleMemoPage() const {
+  sendStaticContent(server.get(), MemoPageHtml, sizeof(MemoPageHtml), MemoPageHtmlETag, "text/html");
+  LOG_DBG("WEB", "Served memo page");
 }
 
 void CrossPointWebServer::handleSettingsPage() const {

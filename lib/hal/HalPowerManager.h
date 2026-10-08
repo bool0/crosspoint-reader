@@ -40,7 +40,15 @@ class HalPowerManager {
 
   // Setup wake up GPIO and enter deep sleep
   // Should be called inside main loop() to handle the currentLockMode
-  void startDeepSleep(HalGPIO& gpio) const;
+  // timerWakeMs > 0 also wakes after that long. keepPower (implied by a timer)
+  // keeps the Xteink battery latch on so the system clock survives the sleep;
+  // otherwise sleep is the stock battery power-off.
+  void startDeepSleep(HalGPIO& gpio, uint32_t timerWakeMs = 0, bool keepPower = false) const;
+
+  // Light-sleep the chip for up to `ms`, waking early when the power button is
+  // pressed. RAM, the system clock and the panel image are kept; the buttons on
+  // the ADC ladder cannot wake it. Returns true when the power button woke it.
+  bool lightSleep(uint32_t ms) const;
 
   // Get battery percentage (range 0-100)
   uint16_t getBatteryPercentage() const;

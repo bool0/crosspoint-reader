@@ -164,6 +164,19 @@ void formatOffset(const uint8_t index, char* buf, const size_t bufSize) {
   snprintf(buf, bufSize, "UTC%c%d:%02d", q < 0 ? '-' : '+', absQ / 4, (absQ % 4) * 15);
 }
 
+bool adoptOffsetIfUnset(const int utcOffsetMinutes) {
+  if (SETTINGS.clockTimezone != 255 || utcOffsetMinutes % 15 != 0) return false;
+  const int q = utcOffsetMinutes / 15;
+  for (size_t i = 0; i < count(); i++) {
+    if (TABLE[i].stdOffsetQ != q) continue;
+    SETTINGS.clockTimezone = static_cast<uint8_t>(i);
+    SETTINGS.saveToFile();
+    applyToClock();
+    return true;
+  }
+  return false;
+}
+
 void applyToClock() {
   const TimezoneInfo& tz = TABLE[activeIndex()];
   if (SETTINGS.clockDst == CrossPointSettings::CLOCK_DST_AUTO) {

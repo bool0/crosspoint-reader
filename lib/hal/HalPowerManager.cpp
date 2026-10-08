@@ -4,6 +4,7 @@
 #include <Logging.h>
 #include <PowerManager.h>
 #include <WiFi.h>
+#include <driver/gpio.h>
 #include <esp_sleep.h>
 #include <soc/soc_caps.h>
 
@@ -74,7 +75,7 @@ void HalPowerManager::setPowerSaving(bool enabled) {
   xSemaphoreGive(modeMutex);
 }
 
-void HalPowerManager::startDeepSleep(HalGPIO& gpio) const {
+void HalPowerManager::startDeepSleep(HalGPIO& gpio, const uint32_t timerWakeMs, const bool keepPower) const {
 #if FREEINK_DEVICE_EEGO_A4
   // LM3630A and GSL share I2C; turn the light off before touch releases the bus.
   Frontlight.setOn(false);
@@ -92,12 +93,13 @@ void HalPowerManager::startDeepSleep(HalGPIO& gpio) const {
   if (gpio.isXteinkDevice()) {
     // GPIO13 gates the battery MOSFET on both Xteink C3 boards; driving it low
     // is the battery power-off (the SDK wake source still handles USB power).
+    // A timed or keep-power sleep holds it high so the chip keeps its clock.
     // Release any surviving pad hold first: hold_en survives deep sleep via
     // the SDK's deepSleep() (esp_sleep_config_gpio_isolate +
     // gpio_deep_sleep_hold_en), and a held pad silently ignores the drive.
     gpio_hold_dis(XTEINK_C3_GPIO13);
     gpio_set_direction(XTEINK_C3_GPIO13, GPIO_MODE_OUTPUT);
-    gpio_set_level(XTEINK_C3_GPIO13, 0);
+    gpio_set_level(XTEINK_C3_GPIO13, timerWakeMs > 0 || keepPower ? 1 : 0);
     gpio_hold_en(XTEINK_C3_GPIO13);
   }
 #endif
@@ -150,9 +152,34 @@ void HalPowerManager::startDeepSleep(HalGPIO& gpio) const {
   }
 #endif
 
+  if (timerWakeMs > 0) esp_sleep_enable_timer_wakeup(static_cast<uint64_t>(timerWakeMs) * 1000ULL);
+
   // Waits for the power button to be physically released (so holding it doesn't
   // immediately wake the device again), then arms the wake source and sleeps.
   freeink::PowerManager::deepSleepUntilPowerButton();
+}
+
+bool HalPowerManager::lightSleep(const uint32_t ms) const {
+  const int8_t pin = BoardConfig::ACTIVE.input.power;
+  const bool canWakeOnPower = pin >= 0 && GPIO_IS_VALID_GPIO(pin);
+  const auto powerGpio = static_cast<gpio_num_t>(pin);
+
+  esp_sleep_enable_timer_wakeup(static_cast<uint64_t>(ms) * 1000ULL);
+  if (canWakeOnPower) {
+    gpio_wakeup_enable(powerGpio,
+                       BoardConfig::ACTIVE.input.powerActiveHigh ? GPIO_INTR_HIGH_LEVEL : GPIO_INTR_LOW_LEVEL);
+    esp_sleep_enable_gpio_wakeup();
+  }
+
+  esp_light_sleep_start();
+  const esp_sleep_wakeup_cause_t cause = esp_sleep_get_wakeup_cause();
+
+  if (canWakeOnPower) {
+    gpio_wakeup_disable(powerGpio);
+    esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_GPIO);
+  }
+  esp_sleep_disable_wakeup_source(ESP_SLEEP_WAKEUP_TIMER);
+  return cause == ESP_SLEEP_WAKEUP_GPIO;
 }
 
 uint16_t HalPowerManager::getBatteryPercentage() const {

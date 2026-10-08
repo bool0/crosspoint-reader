@@ -105,6 +105,8 @@ void SdCardFontSystem::begin(GfxRenderer& renderer) {
     }
   }
 
+  if (SETTINGS.sdFontFamilyName[0] == '\0') loadBuiltinFallback(renderer, /*force=*/false);
+
   LOG_DBG("SDFS", "SD font system ready (%d families discovered)", registry_.getFamilyCount());
 }
 
@@ -140,13 +142,11 @@ void SdCardFontSystem::ensureLoaded(GfxRenderer& renderer) {
   const std::string& currentFamily = manager_.currentFamilyName();
 
   if (wantedFamily[0] == '\0') {
-    if (!currentFamily.empty()) {
-      manager_.unloadAll(renderer);
-    }
     // Back on a built-in family, which exists only at BUILTIN_READER_POINT_SIZES:
     // a size inherited from an SD family has to come back into that set.
     snapFontPointSizeTo(snapToNearestPointSize(BUILTIN_READER_POINT_SIZES, std::size(BUILTIN_READER_POINT_SIZES),
                                                SETTINGS.fontPointSize));
+    loadBuiltinFallback(renderer, registryWasDirty);
     return;
   }
 
@@ -230,6 +230,40 @@ void SdCardFontSystem::setupUiFallbacks(GfxRenderer& renderer) {
       LOG_DBG("SDFS", "No %u pt SD glyphs for UI fallback in %s", ui.pointSize, familyName.c_str());
     }
   }
+}
+
+const SdCardFontFamilyInfo* SdCardFontSystem::pickBuiltinFallback() const {
+  const char* sibling = SETTINGS.fontFamily == CrossPointSettings::NOTOSANS ? "NotoSansSC" : "NotoSerifSC";
+  for (const char* name : {sibling, "WenKai", "NotoSansSC", "NotoSerifSC"}) {
+    const auto* family = registry_.findFamily(name);
+    if (family && !family->vector) return family;
+  }
+  for (const auto& family : registry_.getFamilies()) {
+    if (!family.vector) return &family;
+  }
+  return nullptr;
+}
+
+void SdCardFontSystem::loadBuiltinFallback(GfxRenderer& renderer, const bool force) {
+  const auto* family = pickBuiltinFallback();
+  if (!family) {
+    if (!manager_.currentFamilyName().empty()) manager_.unloadAll(renderer);
+    return;
+  }
+  const auto* nearest = family->findNearestSize(SETTINGS.fontPointSize);
+  const bool loaded =
+      manager_.currentFamilyName() == family->name && nearest && nearest->pointSize == manager_.currentPointSize();
+  if (force || !loaded) {
+    if (!manager_.currentFamilyName().empty()) manager_.unloadAll(renderer);
+    if (!manager_.loadFamily(*family, renderer, SETTINGS.fontPointSize)) {
+      LOG_ERR("SDFS", "Failed to load fallback family %s", family->name.c_str());
+      return;
+    }
+    setupUiFallbacks(renderer);
+    LOG_DBG("SDFS", "Loaded %s as fallback for the built-in reader font", family->name.c_str());
+  }
+  // Re-registered every time: the built-in reader font id follows family and size.
+  renderer.setFallbackFont(SETTINGS.getReaderFontId(), manager_.getFontId(family->name));
 }
 
 int SdCardFontSystem::resolveFontId(const char* familyName, uint8_t /*pointSize*/) const {

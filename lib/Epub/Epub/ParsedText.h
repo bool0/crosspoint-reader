@@ -65,6 +65,8 @@ class ParsedText {
   bool focusReadingEnabled;
   bool isNaturalAlign;
   bool hasRtlWord;
+  // Tokens pushed from CJK text; when they dominate, lines break greedily (see computeLineBreaks).
+  size_t cjkTokenCount = 0;
   bool droppedWords = false;
   bool firstLineConsumed = false;
   std::vector<std::string> reorderedWordsScratch;

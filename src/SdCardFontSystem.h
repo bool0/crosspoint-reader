@@ -69,6 +69,13 @@ class SdCardFontSystem {
   // reused).
   void setupUiFallbacks(GfxRenderer& renderer);
 
+  // With a built-in reader font selected, load an SD family as the script
+  // fallback for it and for the UI fonts, so CJK text still renders. Prefers
+  // the CJK sibling of the built-in design (Noto Sans -> NotoSansSC, Noto
+  // Serif -> NotoSerifSC), then WenKai, then any installed family.
+  void loadBuiltinFallback(GfxRenderer& renderer, bool force);
+  const SdCardFontFamilyInfo* pickBuiltinFallback() const;
+
 #if CROSSPOINT_VECTOR_FONTS
   // --- Vector (.ttf/.otf) font path (FreeInkFont via TtfEpdFont) -------------
   // Load/refresh the selected TTF family at the current reader size, register

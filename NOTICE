@@ -1,0 +1,56 @@
+InkDesk
+Copyright 2026 The InkDesk Authors
+
+This product is a fork of CrossPoint Reader. New work in this repository is
+licensed under the Apache License, Version 2.0 (see LICENSE). Code that comes
+from CrossPoint Reader and the FreeInk SDK remains under the MIT License.
+
+-----------------------------------------------------------------------------
+Which licence applies to which file
+-----------------------------------------------------------------------------
+
+* Files that carry an "SPDX-License-Identifier: Apache-2.0" header were
+  written for InkDesk and are licensed under the Apache License 2.0.
+* All other files come from CrossPoint Reader (some modified by The InkDesk
+  Authors) and are licensed under the MIT License; see LICENSE-MIT. Where
+  InkDesk changed such a file, the changes are also made available under the
+  MIT License, so each of these files stays under a single licence.
+* The freeink-sdk/ directory is the FreeInk SDK (MIT); see freeink-sdk/LICENSE
+  and freeink-sdk/NOTICE.
+* Third-party components are listed with their own licences in
+  THIRD_PARTY_NOTICES.md.
+
+-----------------------------------------------------------------------------
+Upstream projects
+-----------------------------------------------------------------------------
+
+CrossPoint Reader
+  https://github.com/crosspoint-reader/crosspoint-reader
+  Copyright (c) 2025 CrossPoint Reader organization
+  MIT License (LICENSE-MIT)
+
+FreeInk SDK
+  Copyright (c) 2026 FreeInk
+  MIT License (freeink-sdk/LICENSE). Contains code derived from the OpenX4
+  E-Paper Community SDK, Copyright (c) 2025 Open X4 E-Paper Contributors,
+  MIT License (freeink-sdk/NOTICE).
+
+-----------------------------------------------------------------------------
+Firmware binaries
+-----------------------------------------------------------------------------
+
+Firmware images built from this repository statically link wolfSSL
+(GPL-2.0-or-later) and LGPL-2.1 libraries (the Arduino-ESP32 core and
+arduinoWebSockets). A distributed firmware binary is therefore a combined work
+that must be distributed under the terms of the GNU General Public License,
+version 3, together with the complete corresponding source code (this
+repository at the matching commit, with its submodules, and the build
+instructions in README.md). See THIRD_PARTY_NOTICES.md.
+
+-----------------------------------------------------------------------------
+Trademarks
+-----------------------------------------------------------------------------
+
+InkDesk is an independent project. It is not affiliated with, endorsed by or
+sponsored by Xteink (阅星瞳) or the CrossPoint Reader project. Product names are
+used only to describe compatibility.

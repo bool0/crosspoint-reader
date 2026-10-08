@@ -16,12 +16,16 @@
 #include "boot_sleep/BootActivity.h"
 #include "boot_sleep/SleepActivity.h"
 #include "browser/OpdsBookBrowserActivity.h"
+#include "clock/ClockActivity.h"
+#include "clock/MemoListActivity.h"
 #include "components/HeaderBackTapTarget.h"
 #include "home/CrashActivity.h"
 #include "home/FileBrowserActivity.h"
 #include "home/HomeActivity.h"
+#include "home/ImageGalleryActivity.h"
 #include "library/LibraryListActivity.h"
 #include "network/CrossPointWebServerActivity.h"
+#include "network/UsbConnectActivity.h"
 #include "network/UsbDriveActivity.h"
 #include "plugins/PluginCatalogActivity.h"
 #include "reader/ReaderActivity.h"
@@ -273,6 +277,14 @@ void ActivityManager::goToUsbDrive() {
 
 void ActivityManager::goToSettings() { replaceActivity(std::make_unique<SettingsActivity>(renderer, mappedInput)); }
 
+void ActivityManager::goToClock() { replaceActivity(std::make_unique<ClockActivity>(renderer, mappedInput)); }
+
+void ActivityManager::goToImages() { replaceActivity(std::make_unique<ImageGalleryActivity>(renderer, mappedInput)); }
+
+void ActivityManager::goToUsbConnect() { replaceActivity(std::make_unique<UsbConnectActivity>(renderer, mappedInput)); }
+
+void ActivityManager::goToMemos() { replaceActivity(std::make_unique<MemoListActivity>(renderer, mappedInput)); }
+
 void ActivityManager::goToFileBrowser(std::string path) {
   replaceActivity(std::make_unique<FileBrowserActivity>(renderer, mappedInput, std::move(path)));
 }
@@ -322,8 +334,8 @@ void ActivityManager::goToReader(std::string path, const bool allowFastInitialRe
   }
 }
 
-void ActivityManager::goToSleep(bool fromTimeout) {
-  replaceActivity(std::make_unique<SleepActivity>(renderer, mappedInput, fromTimeout));
+void ActivityManager::goToSleep(bool fromTimeout, bool powerOff) {
+  replaceActivity(std::make_unique<SleepActivity>(renderer, mappedInput, fromTimeout, powerOff));
   loop();  // Important: sleep screen must be rendered immediately, the caller will go to sleep right after this returns
 }
 
@@ -377,6 +389,12 @@ bool ActivityManager::preventAutoSleep() const { return currentActivity && curre
 
 bool ActivityManager::requiresExclusiveStorageLoop() const {
   return currentActivity && currentActivity->requiresExclusiveStorageLoop();
+}
+
+bool ActivityManager::allowsUsbAutoOpen() const {
+  if (!currentActivity || isReaderActivity() || !currentActivity->allowsUsbAutoOpen()) return false;
+  return std::all_of(stackActivities.begin(), stackActivities.end(),
+                     [](const auto& activity) { return activity->allowsUsbAutoOpen(); });
 }
 
 bool ActivityManager::isReaderActivity() const {

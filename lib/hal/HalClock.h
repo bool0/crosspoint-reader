@@ -8,6 +8,9 @@ extern HalClock halClock;  // Singleton
 
 class HalClock {
   bool _available = false;
+  // Without a hardware RTC the system clock stands in, valid once SNTP has set
+  // it since power-on (it survives deep sleep and soft restarts, not power-off).
+  bool _hasRtc = false;
   mutable Rtc _sdkRtc;
   // The RTC keeps UTC; local time comes from newlib's localtime_r under the
   // POSIX TZ rule set via setTimezone(), so zones with DST are correct
@@ -22,8 +25,13 @@ class HalClock {
   // Call after BoardConfig has selected the active device.
   void begin();
 
-  // True if an RTC is present on this device
+  // True if this device can tell time: a hardware RTC, or the NTP-synced
+  // system clock on boards without one. Reads still fail until that clock has
+  // been synced since power-on.
   bool isAvailable() const { return _available; }
+
+  // True if a battery-backed RTC chip is present.
+  bool hasHardwareRtc() const { return _hasRtc; }
 
   // Set the POSIX TZ rule (e.g. "CET-1CEST,M3.5.0,M10.5.0/3") applied to every
   // read. nullptr/empty falls back to UTC. Drops the read cache so the change

@@ -38,8 +38,9 @@ class HomeActivity final : public Activity {
   const HomeMenuItem initialMenuItem;
   const bool cleanInitialRefresh;
 
-  // Convert HomeMenuItem to menu index (used in onEnter)
-  static int menuItemToIndex(HomeMenuItem item, bool hasOpdsUrl) {
+  // Convert HomeMenuItem to menu index (used in onEnter). hasClock: the list
+  // home carries the Clock, Memos and USB rows; the cover grid's tab bar does not.
+  static int menuItemToIndex(HomeMenuItem item, bool hasOpdsUrl, bool hasClock) {
     int i = 0;
     if (item == HomeMenuItem::FILE_BROWSER) return i;
     ++i;
@@ -47,6 +48,14 @@ class HomeActivity final : public Activity {
     ++i;
     if (item == HomeMenuItem::OPDS_BROWSER) return hasOpdsUrl ? i : 0;
     if (hasOpdsUrl) ++i;
+    if (item == HomeMenuItem::CLOCK) return hasClock ? i : 0;
+    if (hasClock) ++i;
+    if (item == HomeMenuItem::MEMOS) return hasClock ? i : 0;
+    if (hasClock) ++i;
+    if (item == HomeMenuItem::IMAGES) return hasClock ? i : 0;
+    if (hasClock) ++i;
+    if (item == HomeMenuItem::USB_CONNECT) return hasClock ? i : 0;
+    if (hasClock) ++i;
     if (item == HomeMenuItem::FILE_TRANSFER) return i;
     ++i;
     if (item == HomeMenuItem::SETTINGS_MENU) return i;
@@ -54,11 +63,15 @@ class HomeActivity final : public Activity {
   }
 
   // Convert menu index to HomeMenuItem (used in loop)
-  static HomeMenuItem indexToMenuItem(int idx, bool hasOpdsUrl) {
+  static HomeMenuItem indexToMenuItem(int idx, bool hasOpdsUrl, bool hasClock) {
     int i = 0;
     if (idx == i++) return HomeMenuItem::FILE_BROWSER;
     if (idx == i++) return HomeMenuItem::LIBRARY;
     if (hasOpdsUrl && idx == i++) return HomeMenuItem::OPDS_BROWSER;
+    if (hasClock && idx == i++) return HomeMenuItem::CLOCK;
+    if (hasClock && idx == i++) return HomeMenuItem::MEMOS;
+    if (hasClock && idx == i++) return HomeMenuItem::IMAGES;
+    if (hasClock && idx == i++) return HomeMenuItem::USB_CONNECT;
     if (idx == i++) return HomeMenuItem::FILE_TRANSFER;
     if (idx == i) return HomeMenuItem::SETTINGS_MENU;
     return HomeMenuItem::NONE;
@@ -70,6 +83,12 @@ class HomeActivity final : public Activity {
   void onFileTransferOpen();
   void onOpdsBrowserOpen();
   void onPluginsOpen();
+  bool hasClockRows() const { return !coverGridUi; }
+  // The list home is a plain menu: no cover tile; the last book is the first
+  // row ("Continue Reading"), so every row fits above the button hints.
+  bool compactHome() const { return !coverGridUi; }
+  int coverTileHeight() const;
+  bool continueInMenu() const;
 
   int getMenuItemCount() const;
   bool storeCoverBuffer();    // Store frame buffer for cover image

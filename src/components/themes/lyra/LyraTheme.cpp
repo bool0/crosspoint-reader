@@ -16,13 +16,17 @@
 #include "components/icons/blocks.h"
 #include "components/icons/book.h"
 #include "components/icons/bookmark.h"
+#include "components/icons/clock.h"
 #include "components/icons/cover.h"
 #include "components/icons/folder.h"
 #include "components/icons/hotspot.h"
+#include "components/icons/image.h"
 #include "components/icons/library.h"
+#include "components/icons/memo.h"
 #include "components/icons/recent.h"
 #include "components/icons/settings2.h"
 #include "components/icons/transfer.h"
+#include "components/icons/usb.h"
 #include "components/icons/wifi.h"
 #include "fontIds.h"
 
@@ -60,6 +64,14 @@ const uint8_t* iconForName(UIIcon icon) {
       return BookmarkIcon;
     case UIIcon::Blocks:
       return BlocksIcon;
+    case UIIcon::Clock:
+      return ClockIcon;
+    case UIIcon::Memo:
+      return MemoIcon;
+    case UIIcon::Usb:
+      return UsbIcon;
+    case UIIcon::Image:
+      return ImageIcon;
     default:
       return nullptr;
   }

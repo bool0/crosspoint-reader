@@ -226,6 +226,8 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
     sleepScreenValues[CrossPointSettings::BLANK] = StrId::STR_NONE_OPT;
     sleepScreenValues[CrossPointSettings::QUICK_RESUME] = StrId::STR_QUICK_RESUME;
     sleepScreenValues[CrossPointSettings::TRANSPARENT_CUSTOM] = StrId::STR_TRANSPARENT;
+    sleepScreenValues[CrossPointSettings::CLOCK] = StrId::STR_CLOCK;
+    sleepScreenValues[CrossPointSettings::MEMO] = StrId::STR_MEMOS;
 
     std::vector<StrId> statusBarClockValues(CrossPointSettings::STATUS_BAR_CLOCK_MODE_COUNT);
     statusBarClockValues[CrossPointSettings::STATUS_BAR_CLOCK_HIDE] = StrId::STR_HIDE;
@@ -236,6 +238,9 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
         // --- Display ---
         SettingInfo::Enum(StrId::STR_SLEEP_SCREEN, &CrossPointSettings::sleepScreen, std::move(sleepScreenValues),
                           "sleepScreen", StrId::STR_CAT_DISPLAY),
+        SettingInfo::Enum(StrId::STR_POWER_OFF_SCREEN, &CrossPointSettings::powerOffScreen,
+                          {StrId::STR_IMAGES, StrId::STR_MEMOS, StrId::STR_DARK, StrId::STR_NONE_OPT}, "powerOffScreen",
+                          StrId::STR_CAT_DISPLAY),
         SettingInfo::Enum(StrId::STR_SLEEP_COVER_MODE, &CrossPointSettings::sleepScreenCoverMode,
                           {StrId::STR_FIT, StrId::STR_CROP}, "sleepScreenCoverMode", StrId::STR_CAT_DISPLAY),
         SettingInfo::Enum(StrId::STR_SLEEP_COVER_FILTER, &CrossPointSettings::sleepScreenCoverFilter,
@@ -510,6 +515,20 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
                           {StrId::STR_CLOCK_DST_AUTO, StrId::STR_STATE_ON, StrId::STR_STATE_OFF}, "clockDst",
                           StrId::STR_CUSTOMISE_STATUS_BAR),
         SettingInfo::Toggle(StrId::STR_CLOCK_IN_HEADER, &CrossPointSettings::clockShowInHeader, "clockShowHeader",
+                            StrId::STR_CUSTOMISE_STATUS_BAR),
+        SettingInfo::Enum(StrId::STR_CLOCK_STYLE, &CrossPointSettings::clockFaceStyle,
+                          {StrId::STR_CLOCK_STYLE_ROUNDED, StrId::STR_CLOCK_STYLE_THIN, StrId::STR_CLOCK_STYLE_BOLD,
+                           StrId::STR_CLOCK_STYLE_LCD},
+                          "clockFaceStyle", StrId::STR_CUSTOMISE_STATUS_BAR),
+        SettingInfo::Toggle(StrId::STR_CLOCK_SHOW_DATE, &CrossPointSettings::clockFaceDate, "clockFaceDate",
+                            StrId::STR_CUSTOMISE_STATUS_BAR),
+        SettingInfo::Toggle(StrId::STR_CLOCK_SHOW_BATTERY, &CrossPointSettings::clockFaceBattery, "clockFaceBattery",
+                            StrId::STR_CUSTOMISE_STATUS_BAR),
+        SettingInfo::Toggle(StrId::STR_CLOCK_SHOW_MEMO, &CrossPointSettings::clockFaceMemo, "clockFaceMemo",
+                            StrId::STR_CUSTOMISE_STATUS_BAR),
+        SettingInfo::Toggle(StrId::STR_CLOCK_DARK, &CrossPointSettings::clockFaceDark, "clockFaceDark",
+                            StrId::STR_CUSTOMISE_STATUS_BAR),
+        SettingInfo::Toggle(StrId::STR_KEEP_TIME_IN_SLEEP, &CrossPointSettings::keepTimeInSleep, "keepTimeInSleep",
                             StrId::STR_CUSTOMISE_STATUS_BAR),
         // Persistence flag for NTP debounce. Resetting from the web UI forces a re-sync
         // on next WiFi connect, which is useful when crossing time zones.

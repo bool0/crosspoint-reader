@@ -113,7 +113,7 @@ const uint8_t* GfxRenderer::getGlyphBitmap(const EpdFontData* fontData, const Ep
 }
 
 void GfxRenderer::ensureSdCardFontReady(int fontId, const char* utf8Text, uint8_t styleMask) const {
-  auto it = sdCardFonts_.find(fontId);
+  auto it = sdCardFonts_.find(sdLayoutFontId(fontId));
   if (it != sdCardFonts_.end()) {
     std::string shaped;
     appendShapedRtlTokens(utf8Text, shaped);
@@ -132,7 +132,7 @@ void GfxRenderer::ensureSdCardFontReady(int fontId, const char* utf8Text, uint8_
 void GfxRenderer::ensureSdCardFontReady(const int fontId, const char* const* segments, const size_t* segmentLens,
                                         const size_t segmentCount, const bool includeSpace, const bool includeHyphen,
                                         const uint8_t styleMask) const {
-  auto it = sdCardFonts_.find(fontId);
+  auto it = sdCardFonts_.find(sdLayoutFontId(fontId));
   if (it != sdCardFonts_.end()) {
     // Augment the persistent advance-only table for layout measurement.
     // The table survives across paragraphs/sections (capped per font), so
@@ -255,6 +255,14 @@ void GfxRenderer::insertFont(const int fontId, EpdFontFamily font) {
   if (!result.second) {
     LOG_ERR("GFX", "Font ID %d already registered, ignoring duplicate", fontId);
   }
+}
+
+int GfxRenderer::sdLayoutFontId(const int fontId) const {
+  if (sdCardFonts_.count(fontId) != 0) return fontId;
+  // A built-in font backed by an SD fallback (e.g. Noto Serif + a CJK family):
+  // words it cannot draw are measured with the fallback, so prepare that one.
+  const auto fbIt = fallbackFontMap_.find(fontId);
+  return fbIt != fallbackFontMap_.end() && sdCardFonts_.count(fbIt->second) != 0 ? fbIt->second : fontId;
 }
 
 int GfxRenderer::resolveTextFontId(const int fontId, const char* text, const EpdFontFamily::Style style) const {

@@ -8,8 +8,11 @@ class HalFile;
 
 class SleepActivity final : public Activity {
  public:
-  explicit SleepActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, bool fromTimeout = false)
-      : Activity("Sleep", renderer, mappedInput), fromTimeout(fromTimeout) {}
+  // powerOff: the device is about to cut its power, so show the power-off screen
+  // (SETTINGS.powerOffScreen) rather than the lock screen.
+  explicit SleepActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, bool fromTimeout = false,
+                         bool powerOff = false)
+      : Activity("Sleep", renderer, mappedInput), fromTimeout(fromTimeout), powerOff(powerOff) {}
   void onEnter() override;
 
  private:
@@ -23,6 +26,8 @@ class SleepActivity final : public Activity {
   void renderLastScreenSleepScreen() const;
   void renderTransparentCustomSleepScreen() const;
   void renderBlankSleepScreen() const;
+  void renderPowerOffScreen() const;
 
   bool fromTimeout = false;
+  bool powerOff = false;
 };

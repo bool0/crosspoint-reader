@@ -22,8 +22,9 @@ constexpr char TRANSPARENT_SLEEP_ROOT_PNG[] = "/sleep-overlay.png";
 constexpr size_t COPY_BUFFER_SIZE = 2048;
 }  // namespace
 
-BmpViewerActivity::BmpViewerActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, std::string path)
-    : Activity("BmpViewer", renderer, mappedInput), filePath(std::move(path)) {}
+BmpViewerActivity::BmpViewerActivity(GfxRenderer& renderer, MappedInputManager& mappedInput, std::string path,
+                                     const bool backFinishes)
+    : Activity("BmpViewer", renderer, mappedInput), filePath(std::move(path)), backFinishes(backFinishes) {}
 
 void BmpViewerActivity::loadSiblingImages() {
   siblingImages.clear();
@@ -303,7 +304,11 @@ void BmpViewerActivity::loop() {
   };
 
   if (mappedInput.wasReleased(MappedInputManager::Button::Back)) {
-    activityManager.goToFileBrowser(filePath);
+    if (backFinishes) {
+      finish();
+    } else {
+      activityManager.goToFileBrowser(filePath);
+    }
     return;
   }
 

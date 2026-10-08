@@ -24,12 +24,23 @@ enum MenuItem {
   ITEM_FORMAT,
   ITEM_SHOW_ON_HOME,
   ITEM_SYNC,
+  ITEM_STYLE,
+  ITEM_FACE_DATE,
+  ITEM_FACE_BATTERY,
+  ITEM_FACE_MEMO,
+  ITEM_FACE_DARK,
+  ITEM_KEEP_TIME,
 };
 
 const StrId menuNames[ClockSettingsActivity::ITEM_COUNT] = {
-    StrId::STR_TIMEZONE,        StrId::STR_CLOCK_DST,      StrId::STR_CLOCK_FORMAT,
-    StrId::STR_CLOCK_IN_HEADER, StrId::STR_CLOCK_SYNC_NOW,
+    StrId::STR_TIMEZONE,        StrId::STR_CLOCK_DST,   StrId::STR_CLOCK_FORMAT,       StrId::STR_CLOCK_IN_HEADER,
+    StrId::STR_CLOCK_SYNC_NOW,  StrId::STR_CLOCK_STYLE, StrId::STR_CLOCK_SHOW_DATE,    StrId::STR_CLOCK_SHOW_BATTERY,
+    StrId::STR_CLOCK_SHOW_MEMO, StrId::STR_CLOCK_DARK,  StrId::STR_KEEP_TIME_IN_SLEEP,
 };
+
+const StrId styleNames[CrossPointSettings::CLOCK_STYLE_COUNT] = {
+    StrId::STR_CLOCK_STYLE_ROUNDED, StrId::STR_CLOCK_STYLE_THIN, StrId::STR_CLOCK_STYLE_BOLD,
+    StrId::STR_CLOCK_STYLE_LCD};
 
 const StrId dstNames[CrossPointSettings::CLOCK_DST_MODE_COUNT] = {StrId::STR_CLOCK_DST_AUTO, StrId::STR_STATE_ON,
                                                                   StrId::STR_STATE_OFF};
@@ -69,6 +80,24 @@ void ClockSettingsActivity::activateIndex(const int index) {
     case ITEM_SHOW_ON_HOME:
       SETTINGS.clockShowInHeader = (SETTINGS.clockShowInHeader + 1) % 2;
       break;
+    case ITEM_STYLE:
+      SETTINGS.clockFaceStyle = (SETTINGS.clockFaceStyle + 1) % CrossPointSettings::CLOCK_STYLE_COUNT;
+      break;
+    case ITEM_FACE_DATE:
+      SETTINGS.clockFaceDate = !SETTINGS.clockFaceDate;
+      break;
+    case ITEM_FACE_BATTERY:
+      SETTINGS.clockFaceBattery = !SETTINGS.clockFaceBattery;
+      break;
+    case ITEM_FACE_MEMO:
+      SETTINGS.clockFaceMemo = !SETTINGS.clockFaceMemo;
+      break;
+    case ITEM_FACE_DARK:
+      SETTINGS.clockFaceDark = !SETTINGS.clockFaceDark;
+      break;
+    case ITEM_KEEP_TIME:
+      SETTINGS.keepTimeInSleep = !SETTINGS.keepTimeInSleep;
+      break;
     case ITEM_SYNC:
       if (auto activity = makeUniqueNoThrow<ClockSyncActivity>(renderer, mappedInput)) {
         startActivityForResult(std::move(activity), nullptr);
@@ -96,6 +125,13 @@ void ClockSettingsActivity::buildScreen(UiScreen& screen) {
   rowItems_[ITEM_DST].value = I18N.get(dstNames[dst]);
   rowItems_[ITEM_FORMAT].value = SETTINGS.clockFormat == 1 ? tr(STR_CLOCK_FORMAT_12H) : tr(STR_CLOCK_FORMAT_24H);
   GUI.setCheckboxRow(rowItems_[ITEM_SHOW_ON_HOME], SETTINGS.clockShowInHeader);
+  rowItems_[ITEM_STYLE].value = I18N.get(
+      styleNames[SETTINGS.clockFaceStyle < CrossPointSettings::CLOCK_STYLE_COUNT ? SETTINGS.clockFaceStyle : 0]);
+  GUI.setCheckboxRow(rowItems_[ITEM_FACE_DATE], SETTINGS.clockFaceDate);
+  GUI.setCheckboxRow(rowItems_[ITEM_FACE_BATTERY], SETTINGS.clockFaceBattery);
+  GUI.setCheckboxRow(rowItems_[ITEM_FACE_MEMO], SETTINGS.clockFaceMemo);
+  GUI.setCheckboxRow(rowItems_[ITEM_FACE_DARK], SETTINGS.clockFaceDark);
+  GUI.setCheckboxRow(rowItems_[ITEM_KEEP_TIME], SETTINGS.keepTimeInSleep);
   // The sync row's value is the current time itself: it confirms the sync,
   // previews format/zone changes, and reads "Not Set" until the first sync.
   rowItems_[ITEM_SYNC].value =
