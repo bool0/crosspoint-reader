@@ -117,6 +117,7 @@ Query parameters:
 | Parameter | Required | Default | Description |
 |-----------|----------|---------|-------------|
 | `path` | No | `/` | Destination directory |
+| `overwrite` | No | — | `1` replaces an existing file of the same name |
 
 Successful response:
 
@@ -126,7 +127,9 @@ File uploaded successfully: mybook.epub
 
 Notes:
 
-- Existing files with the same name are overwritten.
+- An existing file with the same name is refused (`400 File already exists`)
+  unless `overwrite=1` is given. A replacement is written to `<name>.part` and
+  moved over the original only after the whole upload succeeded.
 - EPUB cache data for the uploaded path is cleared after a successful upload.
 - HTTP upload uses a 4 KB write buffer before flushing to the SD card.
 

@@ -793,11 +793,11 @@ static bool flushUploadBuffer(CrossPointWebServer::UploadState& state) {
 }
 
 // Drop a partially written upload so a truncated book never lands in the library.
-// The file is new: uploads refuse to overwrite an existing name.
+// A replaced file is written under tempName, so the original survives a failed upload.
 static void removeUploadedFile(const CrossPointWebServer::UploadState& state) {
   String filePath = state.path;
   if (!filePath.endsWith("/")) filePath += "/";
-  filePath += state.fileName;
+  filePath += state.tempName.isEmpty() ? state.fileName : state.tempName;
   Storage.remove(filePath.c_str());
 }
 
@@ -820,6 +820,7 @@ void CrossPointWebServer::handleUpload(UploadState& state) const {
     resetTaskWatchdogIfSubscribed();
 
     state.fileName = upload.filename;
+    state.tempName = "";
     state.size = 0;
     state.success = false;
     state.error = "";
@@ -859,9 +860,17 @@ void CrossPointWebServer::handleUpload(UploadState& state) const {
     // Check if file already exists - SD operations can be slow
     resetTaskWatchdogIfSubscribed();
     if (Storage.exists(filePath.c_str())) {
-      state.error = "File already exists: " + state.fileName;
-      LOG_DBG("WEB", "[UPLOAD] Collision: %s", filePath.c_str());
-      return;
+      const bool isDir = Storage.open(filePath.c_str()).isDirectory();
+      if (!server->hasArg("overwrite") || server->arg("overwrite") != "1" || isDir) {
+        state.error = "File already exists: " + state.fileName;
+        LOG_DBG("WEB", "[UPLOAD] Collision: %s", filePath.c_str());
+        return;
+      }
+      state.tempName = state.fileName + ".part";
+      filePath = state.path;
+      if (!filePath.endsWith("/")) filePath += "/";
+      filePath += state.tempName;
+      LOG_DBG("WEB", "[UPLOAD] Replacing via %s", filePath.c_str());
     }
 
     // The buffer spans upload callbacks; keep it off the task stack and release it at the end.
@@ -931,6 +940,13 @@ void CrossPointWebServer::handleUpload(UploadState& state) const {
         state.error = "Failed to write final data to SD card";
       }
       state.file.close();
+      if (state.error.isEmpty() && !state.tempName.isEmpty()) {
+        String dir = state.path;
+        if (!dir.endsWith("/")) dir += "/";
+        if (!Storage.replaceFile((dir + state.tempName).c_str(), (dir + state.fileName).c_str())) {
+          state.error = "Failed to replace " + state.fileName;
+        }
+      }
       if (!state.error.isEmpty()) removeUploadedFile(state);
 
       if (state.error.isEmpty()) {

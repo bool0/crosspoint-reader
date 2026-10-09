@@ -290,7 +290,7 @@
           await ensureDir();
           const form = new FormData();
           form.append('file', new Blob([encodeBmp(levels)], { type: 'image/bmp' }), name);
-          await check(await fetch('/upload?path=' + encodeURIComponent(SLEEP_DIR), { method: 'POST', body: form }));
+          await check(await fetch('/upload?path=' + encodeURIComponent(SLEEP_DIR) + '&overwrite=1', { method: 'POST', body: form }));
           setStatus(t('sent', name));
           await loadGrid();
           await next();

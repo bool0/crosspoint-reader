@@ -276,7 +276,7 @@
       async function uploadText(dir, name, text) {
         const form = new FormData();
         form.append('file', new Blob([text], { type: 'text/plain;charset=utf-8' }), name);
-        const res = await fetch('/upload?path=' + encodeURIComponent(dir), { method: 'POST', body: form });
+        const res = await fetch('/upload?path=' + encodeURIComponent(dir) + '&overwrite=1', { method: 'POST', body: form });
         if (!res.ok) throw new Error((await res.text()) || res.status);
       }
 

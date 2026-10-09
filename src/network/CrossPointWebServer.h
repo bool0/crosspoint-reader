@@ -35,6 +35,9 @@ class CrossPointWebServer {
     HalFile file;
     String fileName;
     String path = "/";
+    // Set when replacing an existing file: data goes to this name in `path` and
+    // is moved over `fileName` only once the upload completes.
+    String tempName;
     size_t size = 0;
     bool success = false;
     String error = "";
