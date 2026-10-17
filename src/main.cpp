@@ -877,6 +877,13 @@ void loop() {
         logSerial.printf("OPEN_OK\n");
       } else if (serialfiles::handle(cmd)) {
         // LS / GET / PUT / RM / MKDIR / MV: SD card access for x4usb.py
+      } else if (cmd == "BATTERY") {
+        const uint16_t percent = powerManager.getBatteryPercentage();
+        uint16_t rawMv = 0;
+        uint16_t filteredMv = 0;
+        powerManager.batteryDebug(rawMv, filteredMv);
+        logSerial.printf("BATTERY raw=%u filtered=%u shown=%u usb=%d\n", rawMv, filteredMv, percent,
+                         gpio.isUsbConnected() ? 1 : 0);
       } else if (cmd.startsWith("TIME ")) {
         // "TIME <utc epoch> [utc offset minutes]" from tools/sync_time.py.
         long long epoch = 0;

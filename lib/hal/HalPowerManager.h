@@ -20,6 +20,8 @@ class HalPowerManager {
   mutable int _batteryCachedPercent = 0;         // Last read battery percentage (0-100)
   mutable unsigned long _batteryLastPollMs = 0;  // Timestamp of last battery read in milliseconds
 
+  uint16_t adcBatteryPercent() const;
+
   enum LockMode { None, NormalSpeed };
   LockMode currentLockMode = None;
   SemaphoreHandle_t modeMutex = nullptr;  // Protect access to currentLockMode
@@ -52,6 +54,8 @@ class HalPowerManager {
 
   // Get battery percentage (range 0-100)
   uint16_t getBatteryPercentage() const;
+  // Last averaged and filtered ADC battery voltage (X4), for the CMD:BATTERY dev command.
+  void batteryDebug(uint16_t& rawMv, uint16_t& filteredMv) const;
 
   // RAII helper class to manage power saving locks
   // Usage: create an instance of Lock in a scope to disable power saving, for example when running a task that needs

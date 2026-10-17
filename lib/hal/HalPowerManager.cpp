@@ -199,13 +199,62 @@ uint16_t HalPowerManager::getBatteryPercentage() const {
     return _batteryCachedPercent;
   }
 
-  // smooth the battery %.
-  if (_batteryCachedPercent == 0) {
-    _batteryCachedPercent = 10 * battery.readPercentage();
-  } else {
-    _batteryCachedPercent = (_batteryCachedPercent * 9 + battery.readPercentage() * 10) / 10;
+  return adcBatteryPercent();
+}
+
+namespace {
+// ADC battery state. RTC RAM survives the lock-screen clock's timer deep sleep
+// (the battery latch stays on) and is cleared by a real power-off.
+RTC_DATA_ATTR uint16_t rtcBatteryFilteredMv = 0;
+RTC_DATA_ATTR uint8_t rtcBatteryShown = 0xFF;  // 0xFF = nothing shown yet
+RTC_DATA_ATTR uint8_t rtcBatteryLowPolls = 0;
+uint16_t lastRawMv = 0;
+
+// Polls a lower notch must persist before it is shown, so sag under a refresh does not latch.
+constexpr uint8_t BATTERY_DROP_POLLS = 20;
+constexpr int BATTERY_SAMPLES = 8;
+}  // namespace
+
+// Voltage only falls while discharging: a rise is the cell recovering from load
+// (refresh, Wi-Fi) or rest, so without USB the shown value never goes up.
+uint16_t HalPowerManager::adcBatteryPercent() const {
+  static const BatteryMonitor battery;
+  const unsigned long now = millis();
+  if (rtcBatteryShown <= 100 && _batteryLastPollMs != 0 && (now - _batteryLastPollMs) < BATTERY_POLL_MS) {
+    return rtcBatteryShown;
   }
-  return _batteryCachedPercent / 10;
+  _batteryLastPollMs = now;
+
+  uint32_t sum = 0;
+  for (int i = 0; i < BATTERY_SAMPLES; i++) sum += battery.readMillivolts();
+  lastRawMv = static_cast<uint16_t>(sum / BATTERY_SAMPLES);
+  if (lastRawMv == 0) return rtcBatteryShown <= 100 ? rtcBatteryShown : 0;
+
+  if (rtcBatteryFilteredMv == 0) {
+    rtcBatteryFilteredMv = lastRawMv;
+  } else {
+    rtcBatteryFilteredMv += (static_cast<int>(lastRawMv) - static_cast<int>(rtcBatteryFilteredMv)) / 4;
+  }
+
+  const uint16_t previous = rtcBatteryShown <= 100 ? rtcBatteryShown : 0xFFFF;
+  const uint16_t notch = BatteryMonitor::percentageFromMillivolts(rtcBatteryFilteredMv, previous);
+  if (rtcBatteryShown > 100 || gpio.isUsbConnected()) {
+    rtcBatteryShown = static_cast<uint8_t>(notch);
+    rtcBatteryLowPolls = 0;
+  } else if (notch < rtcBatteryShown && WiFi.getMode() == WIFI_MODE_NULL) {
+    if (++rtcBatteryLowPolls >= BATTERY_DROP_POLLS) {
+      rtcBatteryShown = static_cast<uint8_t>(notch);
+      rtcBatteryLowPolls = 0;
+    }
+  } else {
+    rtcBatteryLowPolls = 0;
+  }
+  return rtcBatteryShown;
+}
+
+void HalPowerManager::batteryDebug(uint16_t& rawMv, uint16_t& filteredMv) const {
+  rawMv = lastRawMv;
+  filteredMv = rtcBatteryFilteredMv;
 }
 
 HalPowerManager::Lock::Lock() {
