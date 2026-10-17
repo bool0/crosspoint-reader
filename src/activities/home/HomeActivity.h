@@ -39,7 +39,7 @@ class HomeActivity final : public Activity {
   const bool cleanInitialRefresh;
 
   // Convert HomeMenuItem to menu index (used in onEnter). hasClock: the list
-  // home carries the Clock, Memos and USB rows; the cover grid's tab bar does not.
+  // home carries the Clock, Memos and Images rows; the cover grid's tab bar does not.
   static int menuItemToIndex(HomeMenuItem item, bool hasOpdsUrl, bool hasClock) {
     int i = 0;
     if (item == HomeMenuItem::FILE_BROWSER) return i;
@@ -53,8 +53,6 @@ class HomeActivity final : public Activity {
     if (item == HomeMenuItem::MEMOS) return hasClock ? i : 0;
     if (hasClock) ++i;
     if (item == HomeMenuItem::IMAGES) return hasClock ? i : 0;
-    if (hasClock) ++i;
-    if (item == HomeMenuItem::USB_CONNECT) return hasClock ? i : 0;
     if (hasClock) ++i;
     if (item == HomeMenuItem::FILE_TRANSFER) return i;
     ++i;
@@ -71,7 +69,6 @@ class HomeActivity final : public Activity {
     if (hasClock && idx == i++) return HomeMenuItem::CLOCK;
     if (hasClock && idx == i++) return HomeMenuItem::MEMOS;
     if (hasClock && idx == i++) return HomeMenuItem::IMAGES;
-    if (hasClock && idx == i++) return HomeMenuItem::USB_CONNECT;
     if (idx == i++) return HomeMenuItem::FILE_TRANSFER;
     if (idx == i) return HomeMenuItem::SETTINGS_MENU;
     return HomeMenuItem::NONE;

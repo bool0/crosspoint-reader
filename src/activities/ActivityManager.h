@@ -25,7 +25,6 @@ enum class HomeMenuItem {
   CLOCK,
   MEMOS,
   IMAGES,
-  USB_CONNECT,
   FILE_TRANSFER,
   SETTINGS_MENU
 };

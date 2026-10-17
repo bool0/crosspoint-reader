@@ -44,7 +44,7 @@ int HomeActivity::getMenuItemCount() const {
     count++;
   }
   if (hasClockRows()) {
-    count += 4;  // Clock, Memos, Images, USB
+    count += 3;  // Clock, Memos, Images
   }
   return count;
 }
@@ -341,9 +341,6 @@ void HomeActivity::loop() {
       case HomeMenuItem::IMAGES:
         activityManager.goToImages();
         break;
-      case HomeMenuItem::USB_CONNECT:
-        activityManager.goToUsbConnect();
-        break;
       case HomeMenuItem::FILE_TRANSFER:
         onFileTransferOpen();
         break;
@@ -547,10 +544,10 @@ void HomeActivity::render(RenderLock&&) {
   }
 
   // Build menu items dynamically
-  std::vector<const char*> menuItems = {tr(STR_BROWSE_FILES),  tr(STR_LIBRARY),       tr(STR_CLOCK),
-                                        tr(STR_MEMOS),         tr(STR_IMAGES),        tr(STR_USB_CONNECT),
-                                        tr(STR_FILE_TRANSFER), tr(STR_SETTINGS_TITLE)};
-  std::vector<UIIcon> menuIcons = {Folder, Library, Clock, Memo, Image, Usb, Transfer, Settings};
+  std::vector<const char*> menuItems = {tr(STR_BROWSE_FILES),  tr(STR_LIBRARY), tr(STR_CLOCK),
+                                        tr(STR_MEMOS),         tr(STR_IMAGES),  tr(STR_FILE_TRANSFER),
+                                        tr(STR_SETTINGS_TITLE)};
+  std::vector<UIIcon> menuIcons = {Folder, Library, Clock, Memo, Image, Transfer, Settings};
 
   if (hasLibrarySlot()) {
     menuItems.insert(menuItems.begin() + 2, hasPlugins ? tr(STR_PLUGINS) : tr(STR_OPDS_BROWSER));
