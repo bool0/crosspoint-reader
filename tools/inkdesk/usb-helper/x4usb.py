@@ -13,211 +13,24 @@ editor page from the firmware works unchanged on top of it.
     python3 x4usb.py --no-open
 """
 import argparse
-import base64
-import datetime
 import email.parser
 import email.policy
-import glob
 import json
 import os
 import posixpath
+import sys
 import threading
-import time
 import urllib.parse
 import webbrowser
-import zlib
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 
-import serial  # pyserial
-
 HERE = os.path.dirname(os.path.abspath(__file__))
+sys.path.insert(0, os.path.dirname(HERE))
+from x4link import X4, DeviceError  # noqa: E402
+
 # The memo and images pages are the firmware's own (src/network/html).
 FIRMWARE_HTML = os.path.abspath(os.path.join(HERE, "..", "..", "..", "src", "network", "html"))
-CHUNK = 4096
-
-
-class DeviceError(Exception):
-    pass
-
-
-class X4:
-    """One serial connection to the X4, shared by all requests."""
-
-    def __init__(self):
-        self.lock = threading.Lock()
-        self.port = None
-        self.ser = None
-        self.pending = b""
-
-    # --- connection -------------------------------------------------------
-    @staticmethod
-    def find_port():
-        ports = sorted(glob.glob("/dev/cu.usbmodem*")) or sorted(glob.glob("/dev/ttyACM*"))
-        return ports[0] if ports else None
-
-    def _ensure(self):
-        port = self.find_port()
-        if not port:
-            self._close()
-            raise DeviceError("X4 未连接：请用 USB 线连接并按电源键唤醒 / X4 not connected: plug it in and wake it")
-        if self.ser is None or port != self.port:
-            self._close()
-            self.ser = serial.Serial(port, 115200, timeout=0.2)
-            self.port = port
-            self.pending = b""
-
-    def _close(self):
-        if self.ser is not None:
-            try:
-                self.ser.close()
-            except Exception:
-                pass
-        self.ser = None
-        self.port = None
-
-    def connected(self):
-        return self.find_port() is not None
-
-    # --- line protocol ----------------------------------------------------
-    def _send(self, line):
-        self.ser.reset_input_buffer()
-        self.pending = b""
-        self.ser.write(("CMD:" + line + "\n").encode("utf-8"))
-
-    def _line(self, timeout):
-        """Next complete line, or None on timeout."""
-        deadline = time.time() + timeout
-        while True:
-            if b"\n" in self.pending:
-                line, self.pending = self.pending.split(b"\n", 1)
-                return line.rstrip(b"\r")
-            if time.time() >= deadline:
-                return None
-            self.pending += self.ser.read(max(1, self.ser.in_waiting))
-
-    def _expect(self, prefixes, timeout=10):
-        """First line starting with one of prefixes; log lines are skipped."""
-        deadline = time.time() + timeout
-        while time.time() < deadline:
-            line = self._line(deadline - time.time())
-            if line is None:
-                break
-            text = line.decode("utf-8", "replace")
-            if text.startswith(prefixes):
-                return text
-        raise DeviceError("X4 没有响应 / no reply from the X4")
-
-    def _run(self, fn):
-        with self.lock:
-            try:
-                self._ensure()
-                return fn()
-            except (serial.SerialException, OSError) as e:
-                self._close()
-                raise DeviceError(f"USB 连接中断 / USB link lost: {e}")
-
-    # --- commands ---------------------------------------------------------
-    def ls(self, path):
-        def go():
-            self._send("LS " + path)
-            head = self._expect(("LS_BEGIN", "LS_ERR"))
-            if head.startswith("LS_ERR"):
-                raise DeviceError(head)
-            entries = []
-            while True:
-                line = self._line(10)
-                if line is None:
-                    raise DeviceError("列表超时 / listing timed out")
-                text = line.decode("utf-8", "replace")
-                if text == "LS_END":
-                    return entries
-                if text.startswith("E\t"):
-                    _, kind, size, name = text.split("\t", 3)
-                    entries.append({"name": name, "size": int(size), "isDirectory": kind == "d",
-                                    "isEpub": name.lower().endswith(".epub")})
-
-        return self._run(go)
-
-    def get(self, path):
-        def once():
-            self._send("GET " + path)
-            head = self._expect(("GET_BEGIN", "GET_ERR"))
-            if head.startswith("GET_ERR"):
-                raise DeviceError(head)
-            size = int(head.split()[1])
-            parts = []
-            while True:
-                line = self._line(10)
-                if line is None:
-                    raise DeviceError("下载超时 / download timed out")
-                if line.startswith(b"D "):
-                    parts.append(base64.b64decode(line[2:]))
-                elif line.startswith(b"GET_END"):
-                    data = b"".join(parts)
-                    crc = int(line.split()[1], 16)
-                    if len(data) != size or (zlib.crc32(data) & 0xFFFFFFFF) != crc:
-                        return None  # corrupted by an interleaved log line; retry
-                    return data
-                elif line.startswith(b"GET_ERR"):
-                    raise DeviceError(line.decode("utf-8", "replace"))
-
-        def go():
-            for _ in range(3):
-                data = once()
-                if data is not None:
-                    return data
-            raise DeviceError("下载校验失败 / download failed its checksum")
-
-        return self._run(go)
-
-    def put(self, path, data):
-        def go():
-            self._send(f"PUT {len(data)} {path}")
-            reply = self._expect(("PUT_READY", "PUT_ERR"))
-            if reply != "PUT_READY":
-                raise DeviceError(reply)
-            for off in range(0, len(data), CHUNK):
-                self.ser.write(data[off:off + CHUNK])
-                ack = self._expect(("ACK", "PUT_ERR"))
-                if not ack.startswith("ACK"):
-                    raise DeviceError(ack)
-            result = self._expect(("PUT_OK", "PUT_ERR"), 30)
-            if not result.startswith("PUT_OK"):
-                raise DeviceError(result)
-            if int(result.split()[1], 16) != (zlib.crc32(data) & 0xFFFFFFFF):
-                raise DeviceError("上传校验失败 / upload failed its checksum")
-
-        return self._run(go)
-
-    def simple(self, line, verb):
-        def go():
-            self._send(line)
-            reply = self._expect((verb + "_OK", verb + "_ERR"))
-            if not reply.startswith(verb + "_OK"):
-                raise DeviceError(reply)
-
-        return self._run(go)
-
-    def query(self, line, verb):
-        """Sends a command and returns its <verb>_OK reply line."""
-        def go():
-            self._send(line)
-            reply = self._expect((verb + "_OK", verb + "_ERR"))
-            if not reply.startswith(verb + "_OK"):
-                raise DeviceError(reply)
-            return reply
-
-        return self._run(go)
-
-    def sync_time(self):
-        def go():
-            offset = datetime.datetime.now().astimezone().utcoffset()
-            time.sleep(1 - (time.time() % 1))
-            self._send(f"TIME {int(round(time.time()))} {int(offset.total_seconds() // 60)}")
-            self._expect(("TIME_OK", "TIME_ERR"))
-
-        return self._run(go)
 
 
 DEVICE = X4()

@@ -1,12 +1,14 @@
 #!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 # Copyright 2026 The InkDesk Authors
-"""Builds the X4 browser app pages next to this script.
+"""Builds InkDesk.html, the X4 browser app, next to this script.
 
-memo.html is the firmware's own memo page (MemoPage.html) with the USB
-transport injected, so the two never drift apart. index.html is the file
-manager. Run again after editing either source page.
+One self-contained file with three pages and the USB transport (x4serial.js):
+the firmware's own memo and images pages (src/network/html), so they never
+drift apart, and the file manager (usb-helper/files.html). Copy it to a
+computer and double-click it. Run again after editing any of those sources.
 """
+import json
 import os
 import re
 
@@ -22,9 +24,9 @@ NAV_RE = re.compile(r'<div class="nav-links">.*?</div>', re.S)
 
 def nav(active):
     on = lambda page: ' class="active"' if active == page else ""  # noqa: E731
-    return (f'<div class="nav-links">\n      <a href="index.html"{on("files")} data-i18n="navFiles">Files</a>\n'
-            f'      <a href="memo.html"{on("memos")} data-i18n="navMemos">Memos</a>\n'
-            f'      <a href="images.html"{on("images")} data-i18n="navImages">Images</a>\n    </div>')
+    return (f'<div class="nav-links">\n      <a href="#files"{on("files")} data-i18n="navFiles">Files</a>\n'
+            f'      <a href="#memo"{on("memos")} data-i18n="navMemos">Memos</a>\n'
+            f'      <a href="#images"{on("images")} data-i18n="navImages">Images</a>\n    </div>')
 
 
 def inject_transport(html):
@@ -36,6 +38,8 @@ def build_memo():
     html = NAV_RE.sub(nav("memos"), html, count=1)
     html = inject_transport(html)
     html = html.replace("<title>CrossPoint Memos</title>", "<title>X4 备忘录</title>", 1)
+    # Before the X4 is connected there is nothing to load; x4-connected loads it.
+    html = html.replace("      refreshList().then(() => {", "      if (x4.connected) refreshList().then(() => {", 1)
     # Reload once the X4 is connected (the first load may run before it is).
     reload = """
     <script>
@@ -54,6 +58,8 @@ def build_images():
     html = NAV_RE.sub(nav("images"), html, count=1)
     html = inject_transport(html)
     html = html.replace("<title>CrossPoint Images</title>", "<title>X4 图片</title>", 1)
+    html = html.replace("      loadMode();\n      loadGrid();\n    </script>",
+                        "      if (x4.connected) { loadMode(); loadGrid(); }\n    </script>", 1)
     reload = """
     <script>
       window.addEventListener('x4-connected', () => { loadMode(); loadGrid(); });
@@ -71,7 +77,7 @@ def build_files():
     html = re.sub(r"\s*// Connection indicator;.*?poll\(\);\n", "\n", html, count=1, flags=re.S)
     html = html.replace("      load();\n    </script>", """      window.addEventListener('x4-connected', load);
       x4.addEventListener('change', () => { if (!x4.connected) { rowsEl.innerHTML = ''; setStatus(''); } });
-      load();
+      if (x4.connected) load();
     </script>""", 1)
     # Downloads go through fetch() (the USB transport), not a plain link.
     html = html.replace("""        if (f.isDirectory) a.onclick = () => go(full);
@@ -101,6 +107,9 @@ def build_files():
       });
 
       async function upload(files) {""", 1)
+    # Keep the page's own file name: a file:// page cannot move to "/".
+    html = html.replace("""history.replaceState(null, '', path === '/' ? '/' : '/?path=' + encodeURIComponent(path));""",
+                        """history.replaceState(null, '', location.pathname + (path === '/' ? '' : '?path=' + encodeURIComponent(path)) + location.hash);""", 1)
     html = html.replace("<title>X4 USB 助手</title>", "<title>X4 网页版</title>", 1)
     html = html.replace("title: '🔌 X4 USB Helper'", "title: '📚 X4 Web'", 1)
     html = html.replace("title: '🔌 X4 USB 助手'", "title: '📚 X4 网页版'", 1)
@@ -108,11 +117,33 @@ def build_files():
     return html
 
 
+def build_bundle(pages):
+    """One self-contained file: each page is a string, picked by the URL hash
+    (#files, #memo, #images) and written in while the file loads. Switching
+    pages reloads the file, so every page starts in a fresh window."""
+    transport = open(os.path.join(HERE, "x4serial.js"), encoding="utf-8").read()
+    inlined = {}
+    for key, html in pages.items():
+        inlined[key] = html.replace('<script src="x4serial.js"></script>', "<script>\n" + transport + "\n</script>", 1)
+    data = json.dumps(inlined, ensure_ascii=False).replace("</", "<\\/").replace("<!--", "<\\!--")
+    return f"""<!DOCTYPE html>
+<!-- InkDesk: manage the X4 over USB. Plug in the X4, then open this file in Chrome or Edge. -->
+<!-- SPDX-License-Identifier: Apache-2.0 | Copyright 2026 The InkDesk Authors | built by tools/inkdesk/web/build.py -->
+<meta charset="utf-8">
+<script>
+  const PAGES = {data};
+  const page = location.hash.slice(1) in PAGES ? location.hash.slice(1) : 'files';
+  window.addEventListener('hashchange', () => location.reload());
+  document.write(PAGES[page]);
+</script>
+"""
+
+
 def main():
-    for name, content in (("memo.html", build_memo()), ("images.html", build_images()), ("index.html", build_files())):
-        with open(os.path.join(HERE, name), "w", encoding="utf-8") as f:
-            f.write(content)
-        print("wrote", name)
+    pages = {"memo": build_memo(), "images": build_images(), "files": build_files()}
+    with open(os.path.join(HERE, "InkDesk.html"), "w", encoding="utf-8") as f:
+        f.write(build_bundle(pages))
+    print("wrote InkDesk.html")
 
 
 if __name__ == "__main__":

@@ -33,7 +33,7 @@ InkDesk 是 [CrossPoint Reader](https://github.com/crosspoint-reader/crosspoint-
   - 按住 3 秒 = 关机，彻底断电（显示 *关机画面*：图片 / 备忘录 / 默认 / 空白）
 - **USB 连接**
   - 插上 USB 线自动显示「USB 连接」页面
-  - 用 Chrome / Edge 打开 InkDesk 网页版（Web Serial），无需安装软件即可管理文件、备忘录和图片；Windows、macOS、Linux、Android（Chrome 148+）均可使用
+  - 用 Chrome / Edge 双击打开 `InkDesk.html`（Web Serial，一个文件），无需安装软件即可管理文件、备忘录和图片；Windows、macOS、Linux、Android（Chrome 148+）均可使用
   - 另附一个 Python 小工具（`tools/inkdesk/usb-helper`），可在 Safari 等任何浏览器中使用
 
 ## 支持的设备
@@ -94,11 +94,13 @@ python3 lib/EpdFont/scripts/fontconvert_sdcard.py \
 
 | 工具 | 用途 |
 |---|---|
-| `tools/inkdesk/web/` | InkDesk 网页版，用 Chrome / Edge 打开 `index.html`，通过 USB 管理文件、备忘录、图片，见其 [README](tools/inkdesk/web/README.md) |
-| `tools/inkdesk/usb-helper/x4usb.py` | 本地网页助手，任何浏览器都能用：`python3 tools/inkdesk/usb-helper/x4usb.py` |
+| `tools/inkdesk/web/InkDesk.html` | InkDesk 网页版（单个文件）：复制到电脑上，插上 USB 后用 Chrome / Edge 双击打开，管理文件、备忘录、图片，见其 [README](tools/inkdesk/web/README.md) |
+| `tools/inkdesk/usb-helper/x4usb.py` | 本地网页助手，Safari 等任何浏览器都能用：`python3 tools/inkdesk/usb-helper/x4usb.py` |
 | `tools/inkdesk/sync_time.py` | 用电脑时间校准设备时钟；`--watch` 会在每次插入 USB 时自动校准 |
 | `tools/inkdesk/push_file.py` | 通过 USB 复制文件到 SD 卡，例如 `push_file.py *.cpfont --dest /fonts/WenKai/` |
 | `tools/inkdesk/dev/` | 开发用：截屏、发送调试命令 |
+
+这些 Python 工具都通过 `tools/inkdesk/x4link.py` 连接 X4（Windows、macOS、Linux 自动找到串口），需要 `pip install pyserial`。
 
 设备也能通过 Wi-Fi 使用：主页 → 文件传输，然后在手机浏览器打开设备显示的地址，并进入 `/memo` 或 `/images` 页面。
 
