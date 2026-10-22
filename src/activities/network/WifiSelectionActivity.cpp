@@ -24,6 +24,47 @@ namespace {
 constexpr fui::ActionId ACTION_ROW = 1;
 constexpr fui::ActionId ACTION_SCAN = 2;
 constexpr fui::ActionId ACTION_PROMPT = 3;
+
+// Why the last join attempt failed, written from the Wi-Fi event task.
+volatile uint8_t lastDisconnectReason = 0;
+volatile bool associated = false;
+
+void onWifiEvent(WiFiEvent_t event, WiFiEventInfo_t info) {
+  if (event == ARDUINO_EVENT_WIFI_STA_DISCONNECTED) {
+    lastDisconnectReason = info.wifi_sta_disconnected.reason;
+    associated = false;
+    LOG_INF("WIFI", "Disconnected, reason %u", static_cast<unsigned>(lastDisconnectReason));
+  } else if (event == ARDUINO_EVENT_WIFI_STA_CONNECTED) {
+    associated = true;
+    LOG_INF("WIFI", "Associated, waiting for DHCP");
+  }
+}
+
+// A failed join usually reports only "timeout"; the 802.11 reason says why.
+const char* joinFailureMessage(const wl_status_t status) {
+  if (associated) return tr(STR_WIFI_ERR_NO_IP);
+  switch (lastDisconnectReason) {
+    case WIFI_REASON_AUTH_EXPIRE:
+    case WIFI_REASON_4WAY_HANDSHAKE_TIMEOUT:
+    case WIFI_REASON_HANDSHAKE_TIMEOUT:
+    case WIFI_REASON_AUTH_FAIL:
+    case WIFI_REASON_NO_AP_FOUND_W_COMPATIBLE_SECURITY:
+      return tr(STR_WIFI_ERR_PASSWORD);
+    case WIFI_REASON_NO_AP_FOUND:
+    case WIFI_REASON_NO_AP_FOUND_IN_RSSI_THRESHOLD:
+      return tr(STR_WIFI_ERR_NOT_FOUND);
+    case WIFI_REASON_BEACON_TIMEOUT:
+    case WIFI_REASON_ASSOC_FAIL:
+    case WIFI_REASON_ASSOC_EXPIRE:
+    case WIFI_REASON_CONNECTION_FAIL:
+      return tr(STR_WIFI_ERR_WEAK);
+    default:
+      break;
+  }
+  if (status == WL_NO_SSID_AVAIL) return tr(STR_ERROR_NETWORK_NOT_FOUND);
+  if (status == WL_CONNECT_FAILED) return tr(STR_ERROR_GENERAL_FAILURE);
+  return tr(STR_ERROR_CONNECTION_TIMEOUT);
+}
 }  // namespace
 
 WifiSelectionActivity::WifiSelectionActivity(GfxRenderer& renderer, MappedInputManager& mappedInput,
@@ -465,6 +506,14 @@ void WifiSelectionActivity::attemptConnection() {
   connectionError.clear();
   requestUpdate();
 
+  static bool eventsRegistered = false;
+  if (!eventsRegistered) {
+    WiFi.onEvent(onWifiEvent);
+    eventsRegistered = true;
+  }
+  lastDisconnectReason = 0;
+  associated = false;
+
   WiFi.persistent(false);  // Credentials are managed by WifiCredentialStore; suppress SDK NVS auto-connect
   WiFi.mode(WIFI_STA);
   WiFi.disconnect(true, true);  // Abort any in-progress SDK auto-connect and clear NVS-saved SSID
@@ -562,10 +611,7 @@ void WifiSelectionActivity::checkConnectionStatus() {
   }
 
   if (status == WL_CONNECT_FAILED || status == WL_NO_SSID_AVAIL) {
-    connectionError = tr(STR_ERROR_GENERAL_FAILURE);
-    if (status == WL_NO_SSID_AVAIL) {
-      connectionError = tr(STR_ERROR_NETWORK_NOT_FOUND);
-    }
+    connectionError = joinFailureMessage(status);
     if (autoConnecting) {
       handleAutoConnectFailure();
       return;
@@ -578,8 +624,10 @@ void WifiSelectionActivity::checkConnectionStatus() {
   // Check for timeout
   const unsigned long timeoutMs = autoConnecting ? AUTO_CONNECTION_TIMEOUT_MS : CONNECTION_TIMEOUT_MS;
   if (millis() - connectionStartTime > timeoutMs) {
+    connectionError = joinFailureMessage(status);
+    LOG_INF("WIFI", "Join timed out (status %d, reason %u)", static_cast<int>(status),
+            static_cast<unsigned>(lastDisconnectReason));
     WiFi.disconnect();
-    connectionError = tr(STR_ERROR_CONNECTION_TIMEOUT);
     if (autoConnecting) {
       handleAutoConnectFailure();
       return;

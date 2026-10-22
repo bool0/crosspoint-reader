@@ -17,4 +17,6 @@ void clearPanic();
 
 std::string getPanicInfo(bool full = false);
 bool isRebootFromPanic();
+// Name of the last reset cause, e.g. "BROWNOUT".
+const char* resetReasonName();
 }  // namespace HalSystem

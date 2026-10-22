@@ -47,6 +47,7 @@
 #include "util/LockScreen.h"
 #include "util/MemoStore.h"
 #include "util/PluginEvents.h"
+#include "util/PowerLog.h"
 #include "util/ScreenshotUtil.h"
 #include "util/Timezones.h"
 
@@ -558,6 +559,8 @@ void setup() {
   }
 
   HalSystem::checkPanic();
+  powerlog::note("boot");
+  powerlog::startForceRestartWatch();
 
   APP_STATE.loadFromFile();
   const bool isSleepWake = wakeupReason == HalGPIO::WakeupReason::PowerButton;

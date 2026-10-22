@@ -77,8 +77,8 @@ size_t base64Encode(const uint8_t* in, const size_t len, char* out) {
   static constexpr char kAlphabet[] = "ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
   size_t o = 0;
   for (size_t i = 0; i < len; i += 3) {
-    const uint32_t v = (static_cast<uint32_t>(in[i]) << 16) | (i + 1 < len ? in[i + 1] << 8 : 0) |
-                       (i + 2 < len ? in[i + 2] : 0);
+    const uint32_t v =
+        (static_cast<uint32_t>(in[i]) << 16) | (i + 1 < len ? in[i + 1] << 8 : 0) | (i + 2 < len ? in[i + 2] : 0);
     out[o++] = kAlphabet[(v >> 18) & 0x3F];
     out[o++] = kAlphabet[(v >> 12) & 0x3F];
     out[o++] = i + 1 < len ? kAlphabet[(v >> 6) & 0x3F] : '=';

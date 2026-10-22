@@ -18,6 +18,7 @@
 #include "components/UITheme.h"
 #include "fontIds.h"
 #include "util/PluginEvents.h"
+#include "util/PowerLog.h"
 #include "util/QrUtils.h"
 #include "util/TaskWatchdog.h"
 
@@ -193,6 +194,7 @@ void CrossPointWebServerActivity::onNetworkModeSelected(const NetworkMode mode) 
   if (mode == NetworkMode::JOIN_NETWORK) {
     // STA mode - launch WiFi selection
     LOG_DBG("WEBACT", "Turning on WiFi (STA mode)...");
+    powerlog::note("wifi");
     WiFi.mode(WIFI_STA);
 
     state = WebServerActivityState::WIFI_SELECTION;
@@ -522,28 +524,31 @@ void CrossPointWebServerActivity::renderServerRunning() const {
     renderer.drawText(SMALL_FONT_ID, metrics.contentSidePadding + QR_CODE_WIDTH + metrics.verticalSpacing, startY + 100,
                       ipUrl.c_str());
   } else {
-    startY += metrics.verticalSpacing * 2;
+    // Numbered steps around the QR code: a joined network is useless if the
+    // user does not know where to go next.
+    const int textWidth = pageWidth - 2 * metrics.contentSidePadding;
+    const auto drawStep = [&](const std::string& text) {
+      for (const auto& line : renderer.wrappedText(UI_10_FONT_ID, text.c_str(), textWidth, 3)) {
+        renderer.drawText(UI_10_FONT_ID, metrics.contentSidePadding, startY, line.c_str());
+        startY += height10;
+      }
+      startY += 6;
+    };
 
-    // STA mode display (original behavior)
-    // std::string ipInfo = "IP Address: " + connectedIP;
-    renderer.drawCenteredText(UI_10_FONT_ID, startY, tr(STR_OPEN_URL_HINT), true, EpdFontFamily::BOLD);
-    startY += height10;
-    renderer.drawCenteredText(UI_10_FONT_ID, startY, tr(STR_SCAN_QR_HINT), true, EpdFontFamily::BOLD);
-    startY += height10 + metrics.verticalSpacing * 2;
+    char step[160];
+    snprintf(step, sizeof(step), tr(STR_WEB_STEP_SAME_WIFI), connectedSSID.c_str());
+    drawStep(step);
+    drawStep(tr(STR_WEB_STEP_OPEN));
 
-    // Show QR code for URL
-    std::string webInfo = "http://" + connectedIP + "/";
+    const std::string webInfo = "http://" + connectedIP + "/";
     const Rect qrBounds((pageWidth - QR_CODE_WIDTH) / 2, startY, QR_CODE_WIDTH, QR_CODE_HEIGHT);
     QrUtils::drawQrCode(renderer, qrBounds, webInfo);
-    startY += QR_CODE_HEIGHT + metrics.verticalSpacing * 2;
+    startY += QR_CODE_HEIGHT + 8;
+    renderer.drawCenteredText(UI_12_FONT_ID, startY, webInfo.c_str(), true, EpdFontFamily::BOLD);
+    startY += renderer.getLineHeight(UI_12_FONT_ID) + metrics.verticalSpacing;
 
-    // Show web server URL prominently
-    renderer.drawCenteredText(UI_10_FONT_ID, startY, webInfo.c_str(), true);
-    startY += height10 + 5;
-
-    // Also show hostname URL
-    std::string hostnameUrl = std::string(tr(STR_OR_HTTP_PREFIX)) + AP_HOSTNAME + ".local/";
-    renderer.drawCenteredText(SMALL_FONT_ID, startY, hostnameUrl.c_str(), true);
+    drawStep(tr(STR_WEB_STEP_PAGES));
+    drawStep(tr(STR_WEB_STEP_EXIT));
   }
 
   const auto labels = mappedInput.mapLabels(tr(STR_EXIT), "", "", "");
