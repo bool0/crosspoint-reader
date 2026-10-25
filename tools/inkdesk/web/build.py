@@ -17,6 +17,7 @@ REPO = os.path.abspath(os.path.join(HERE, "..", "..", ".."))
 HTML_DIR = os.path.join(REPO, "src", "network", "html")
 MEMO_SRC = os.path.join(HTML_DIR, "MemoPage.html")
 IMAGES_SRC = os.path.join(HTML_DIR, "ImagesPage.html")
+WEATHER_SRC = os.path.join(HTML_DIR, "WeatherPage.html")
 FILES_SRC = os.path.join(REPO, "tools", "inkdesk", "usb-helper", "files.html")
 
 NAV_RE = re.compile(r'<div class="nav-links">.*?</div>', re.S)
@@ -26,7 +27,8 @@ def nav(active):
     on = lambda page: ' class="active"' if active == page else ""  # noqa: E731
     return (f'<div class="nav-links">\n      <a href="#files"{on("files")} data-i18n="navFiles">Files</a>\n'
             f'      <a href="#memo"{on("memos")} data-i18n="navMemos">Memos</a>\n'
-            f'      <a href="#images"{on("images")} data-i18n="navImages">Images</a>\n    </div>')
+            f'      <a href="#images"{on("images")} data-i18n="navImages">Images</a>\n'
+            f'      <a href="#weather"{on("weather")} data-i18n="navWeather">Weather</a>\n    </div>')
 
 
 def inject_transport(html):
@@ -66,6 +68,18 @@ def build_images():
     </script>
   </body>"""
     return html.replace("</body>", reload.lstrip("\n"), 1)
+
+
+def build_weather():
+    html = open(WEATHER_SRC, encoding="utf-8").read()
+    html = NAV_RE.sub(nav("weather"), html, count=1)
+    html = inject_transport(html)
+    html = html.replace("<title>CrossPoint Weather</title>", "<title>X4 天气</title>", 1)
+    html = html.replace("      showNow();\n      showMode();\n    </script>",
+                        "      if (x4.connected) { showNow(); showMode(); }\n"
+                        "      window.addEventListener('x4-connected', () => { showNow(); showMode(); });\n"
+                        "      window.addEventListener('x4-weather', showNow);\n    </script>", 1)
+    return html
 
 
 def build_files():
@@ -140,7 +154,7 @@ def build_bundle(pages):
 
 
 def main():
-    pages = {"memo": build_memo(), "images": build_images(), "files": build_files()}
+    pages = {"memo": build_memo(), "images": build_images(), "weather": build_weather(), "files": build_files()}
     with open(os.path.join(HERE, "InkDesk.html"), "w", encoding="utf-8") as f:
         f.write(build_bundle(pages))
     print("wrote InkDesk.html")

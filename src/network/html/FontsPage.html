@@ -130,6 +130,7 @@
       <a href="/files">File Manager</a>
       <a href="/memo">Memos</a>
       <a href="/images">Images</a>
+      <a href="/weather">Weather</a>
       <a href="/settings">Settings</a>
       <a href="/fonts" class="active">Fonts</a>
     </div>
@@ -337,5 +338,12 @@
 
     loadFonts();
   </script>
+    <script>
+      // Chinese labels for the navigation bar (the rest of this page is English).
+      if ((navigator.language || '').toLowerCase().startsWith('zh')) {
+        const NAV_ZH = { Home: '首页', 'File Manager': '文件管理', Memos: '备忘录', Images: '图片', Weather: '天气', Settings: '设置', Fonts: '字体' };
+        document.querySelectorAll('.nav-links a').forEach((a) => { const zh = NAV_ZH[a.textContent.trim()]; if (zh) a.textContent = zh; });
+      }
+    </script>
   </body>
 </html>

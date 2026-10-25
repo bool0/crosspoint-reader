@@ -125,6 +125,8 @@ class CrossPointWebServer {
   void handleFontsPage() const;
   void handleMemoPage() const;
   void handleImagesPage() const;
+  void handleWeatherPage() const;
+  void handleWeatherRefresh() const;
   void handleFontList() const;
   void handleFontUpload();
   void handleFontUploadData();

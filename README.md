@@ -28,9 +28,15 @@ InkDesk 是 [CrossPoint Reader](https://github.com/crosspoint-reader/crosspoint-
 - **图片**
   - 在网页上选择照片，自动裁剪、调整亮度对比度并抖动成 4 级灰度后发送
   - 设备上可浏览图片，也可用作锁屏 / 关机画面
+- **天气**
+  - 天气、城市、温度、体感温度、最高 / 最低温度、湿度、风向风力、紫外线、日出日落
+  - 每次连接 Wi-Fi，或用 USB 连接 `InkDesk.html` 时自动刷新；位置按网络的公网 IP 自动判断，也可在网页「天气」页手动设置城市
+  - [Weather data by Open-Meteo.com](https://open-meteo.com/)（[CC BY 4.0](https://creativecommons.org/licenses/by/4.0/)，免费接口仅限非商业用途）；自动定位使用 ipwho.is，失败时用 geojs.io（这些服务只看到网络的 IP 地址）
+- **游戏**：2048、数独（每局随机生成、唯一解）、扫雷、五子棋（对战设备）；回合制设计，适合墨水屏，退出时自动保存进度
 - **锁屏与关机**
   - 按住电源键约 1 秒松开 = 锁屏（显示 *休眠画面*：时钟 / 备忘录 / 图片……）
-  - 按住 3 秒 = 关机，彻底断电（显示 *关机画面*：图片 / 备忘录 / 默认 / 空白）
+  - 按住 3 秒 = 关机，彻底断电（显示 *关机画面*：图片 / 备忘录 / 天气 / 默认 / 空白，在 设置 → 显示 → 关机画面 中选择）
+  - 卡住时按住电源键 10 秒强制重启
 - **USB 连接**
   - 插上 USB 线自动显示「USB 连接」页面
   - 用 Chrome / Edge 双击打开 `InkDesk.html`（Web Serial，一个文件），无需安装软件即可管理文件、备忘录和图片；Windows、macOS、Linux、Android（Chrome 148+）均可使用
@@ -140,6 +146,8 @@ InkDesk is a fork of [CrossPoint Reader](https://github.com/crosspoint-reader/cr
 - a desk clock with a live lock-screen clock
 - Markdown memos with nested checklists, editable from a phone or computer
 - images for the gallery and the lock / power-off screens
+- a weather screen (Open-Meteo), refreshed on every Wi-Fi join or USB connection
+- turn-based games for e-ink: 2048, Sudoku, Minesweeper and Gomoku
 - a hold-to-power-off power button
 - USB management from Chrome / Edge via Web Serial
 

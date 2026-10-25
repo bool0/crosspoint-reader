@@ -46,12 +46,14 @@
 #include "html/MemoPageHtml.generated.h"
 #include "html/RunnerPageHtml.generated.h"
 #include "html/SettingsPageHtml.generated.h"
+#include "html/WeatherPageHtml.generated.h"
 #include "html/js/jszip_minJs.generated.h"
 #include "util/BookCacheUtils.h"
 #include "util/DictionaryRegistry.h"
 #include "util/PluginHttp.h"
 #include "util/PluginLocations.h"
 #include "util/TaskWatchdog.h"
+#include "util/Weather.h"
 
 namespace {
 // Arduino's WebServer retains parsed request arguments until the next request.
@@ -226,6 +228,8 @@ void CrossPointWebServer::begin() {
   // Settings endpoints
   server->on("/memo", HTTP_GET, [this] { handleMemoPage(); });
   server->on("/images", HTTP_GET, [this] { handleImagesPage(); });
+  server->on("/weather", HTTP_GET, [this] { handleWeatherPage(); });
+  server->on("/api/weather/refresh", HTTP_POST, [this] { handleWeatherRefresh(); });
   server->on("/settings", HTTP_GET, [this] { handleSettingsPage(); });
   server->on("/api/settings", HTTP_GET, [this] { handleGetSettings(); });
   server->on("/api/settings", HTTP_POST, [this] { handlePostSettings(); });
@@ -1348,6 +1352,20 @@ void CrossPointWebServer::handleDelete() const {
 void CrossPointWebServer::handleImagesPage() const {
   sendStaticContent(server.get(), ImagesPageHtml, sizeof(ImagesPageHtml), ImagesPageHtmlETag, "text/html");
   LOG_DBG("WEB", "Served images page");
+}
+
+void CrossPointWebServer::handleWeatherPage() const {
+  sendStaticContent(server.get(), WeatherPageHtml, sizeof(WeatherPageHtml), WeatherPageHtmlETag, "text/html");
+  LOG_DBG("WEB", "Served weather page");
+}
+
+// The device fetches the weather itself, so the reading follows the Wi-Fi's location.
+void CrossPointWebServer::handleWeatherRefresh() const {
+  if (weather::refreshOverWifi()) {
+    server->send(200, "text/plain", "Weather updated");
+  } else {
+    server->send(502, "text/plain", "Could not reach the weather service");
+  }
 }
 
 void CrossPointWebServer::handleMemoPage() const {

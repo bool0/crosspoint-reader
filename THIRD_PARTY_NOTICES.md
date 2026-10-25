@@ -41,6 +41,17 @@ repository. They are linked into the firmware image.
 | FreeType | FreeType License (FTL) or GPL-2.0 | `freeink-sdk/libs/font/FreeInkFont/third_party/freetype` (only built for boards with PSRAM; not in X4 firmware) |
 | Hyphenation patterns | Tries from [typst/hypher](https://github.com/typst/hypher) (MIT OR Apache-2.0), compiled from the TeX [hyph-utf8](https://github.com/hyphenation/tex-hyphen) patterns; each language's original pattern licence applies | `lib/Epub/Epub/hyphenation/generated` |
 
+## Online services
+
+The firmware and tools call these services at run time; no data from them is
+stored in this repository.
+
+| Service | Used for | Terms |
+|---|---|---|
+| [Open-Meteo](https://open-meteo.com/) | Weather forecast, city search | Free API for non-commercial use only; data under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), credited as "Weather data by Open-Meteo.com" on the weather screen and page. Commercial use (for example selling devices with this firmware) needs an Open-Meteo subscription. |
+| [ipwho.is](https://ipwhois.io/) | Locating the network by its IP address | Free tier without a key (1,000 requests a day per IP), commercial use allowed |
+| [GeoJS](https://www.geojs.io/) | Fallback IP location | Free; data from MaxMind GeoLite |
+
 ## Fonts
 
 Built-in fonts are converted to bitmaps and compiled into the firmware. Their

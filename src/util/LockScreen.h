@@ -24,6 +24,9 @@ bool renderClock(GfxRenderer& renderer);
 // Draws the pinned memo full-screen. Returns false (nothing drawn) without a memo.
 bool renderMemo(GfxRenderer& renderer);
 
+// Draws the last saved weather reading full-screen. Returns false without one.
+bool renderWeather(GfxRenderer& renderer);
+
 // Whether the last sleep entry drew a clock that still needs minute ticks.
 bool armed();
 void disarm();

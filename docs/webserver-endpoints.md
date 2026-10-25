@@ -19,6 +19,9 @@ the IP address shown on the device screen.
 | `GET` | `/files` | File manager page |
 | `GET` | `/settings` | Web settings page |
 | `GET` | `/fonts` | SD-card font manager page |
+| `GET` | `/memo` | Memo editor (InkDesk) |
+| `GET` | `/images` | Lock / power-off images (InkDesk) |
+| `GET` | `/weather` | Weather reading and location (InkDesk) |
 | `GET` | `/js/jszip.min.js` | JavaScript asset used by the file manager |
 
 ## Device Status
@@ -260,6 +263,17 @@ Successful response:
 ```text
 Applied 2 setting(s)
 ```
+
+## Weather API (InkDesk)
+
+### `POST /api/weather/refresh`
+
+The device fetches the current weather over its Wi-Fi connection and saves it
+to `/weather/now.json`; the location is `/weather/location.json` (manual) or the
+network's IP location. Returns `200 Weather updated`, or `502` when the
+services cannot be reached. The weather page uploads `location.json` through
+`POST /upload?overwrite=1`. Data: Open-Meteo (CC BY 4.0); IP location:
+ipwho.is, falling back to geojs.io. See `src/util/Weather.h`.
 
 ## Font Management API
 

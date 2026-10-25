@@ -17,6 +17,7 @@
 #include "components/UITheme.h"
 #include "fontIds.h"
 #include "util/PluginEvents.h"
+#include "util/Weather.h"
 
 namespace fui = freeink::ui;
 
@@ -581,6 +582,12 @@ void WifiSelectionActivity::checkConnectionStatus() {
     // Every station join is a chance to snap the loan-clock floor to real
     // time (non-blocking; see TrustedTime).
     trustedtime::startSync();
+
+    // Every join refreshes the weather screen's reading (a few seconds, once).
+    {
+      RenderLock lock(*this);
+      weather::refreshOverWifi();
+    }
 
     // Save this as the last connected network - SD card operations need lock as
     // we use SPI for both

@@ -37,6 +37,10 @@
 #include "activities/Activity.h"
 #include "activities/ActivityManager.h"
 #include "activities/clock/MemoViewActivity.h"
+#include "activities/games/Game2048Activity.h"
+#include "activities/games/GomokuActivity.h"
+#include "activities/games/MinesweeperActivity.h"
+#include "activities/games/SudokuActivity.h"
 #include "activities/settings/SdFirmwareUpdateActivity.h"
 #include "activities/util/BmpViewerActivity.h"
 #include "components/UITheme.h"
@@ -804,14 +808,6 @@ void loop() {
         uint8_t* buf = display.getFrameBuffer();
         logSerial.write(buf, bufferSize);
         logSerial.printf("SCREENSHOT_END\n");
-      } else if (cmd == "SETUP_ZH") {
-        // Simplified Chinese UI on the WenKai SD font (its CJK glyphs back the UI fallback).
-        SETTINGS.language = static_cast<uint8_t>(Language::ZH);
-        strncpy(SETTINGS.sdFontFamilyName, "WenKai", sizeof(SETTINGS.sdFontFamilyName) - 1);
-        SETTINGS.sdFontFamilyName[sizeof(SETTINGS.sdFontFamilyName) - 1] = '\0';
-        SETTINGS.saveToFile();
-        logSerial.printf("SETUP_OK\n");
-        silentRestart();
       } else if (cmd == "SLEEPSCREEN") {
         logSerial.printf("SLEEPSCREEN_OK %d\n", static_cast<int>(SETTINGS.sleepScreen));
       } else if (cmd.startsWith("SLEEPSCREEN ")) {
@@ -821,39 +817,17 @@ void loop() {
           SETTINGS.saveToFile();
           logSerial.printf("SLEEPSCREEN_OK %d\n", mode);
         }
-      } else if (cmd.startsWith("CLOCKFACE ")) {
-        int style = 0, date = 1, battery = 1, memo = 1, dark = 0;
-        if (sscanf(cmd.c_str() + 10, "%d %d %d %d %d", &style, &date, &battery, &memo, &dark) == 5 && style >= 0 &&
-            style < CrossPointSettings::CLOCK_STYLE_COUNT) {
-          SETTINGS.clockFaceStyle = static_cast<uint8_t>(style);
-          SETTINGS.clockFaceDate = date != 0;
-          SETTINGS.clockFaceBattery = battery != 0;
-          SETTINGS.clockFaceMemo = memo != 0;
-          SETTINGS.clockFaceDark = dark != 0;
-          SETTINGS.saveToFile();
-          activityManager.requestUpdate();
-          logSerial.printf("CLOCKFACE_OK\n");
-        }
-      } else if (cmd == "PREVIEW_POWEROFF") {
-        // Draws the power-off screen without powering off (for screenshots).
+      } else if (cmd == "PREVIEW_POWEROFF" || cmd.startsWith("PREVIEW_POWEROFF ")) {
+        // Draws the power-off screen without powering off (for screenshots);
+        // an argument previews that power-off mode without saving it.
+        const uint8_t saved = SETTINGS.powerOffScreen;
+        if (cmd.length() > 17) SETTINGS.powerOffScreen = static_cast<uint8_t>(cmd.substring(17).toInt());
         activityManager.goToSleep(false, /*powerOff=*/true);
+        SETTINGS.powerOffScreen = saved;
         logSerial.printf("PREVIEW_OK\n");
       } else if (cmd == "SLEEP") {
         logSerial.printf("SLEEP_OK\n");
         enterDeepSleep();
-      } else if (cmd.startsWith("FONT ")) {
-        // "FONT serif" / "FONT sans" pick a built-in family; anything else names an SD family.
-        const String name = cmd.substring(5);
-        if (name == "serif" || name == "sans") {
-          SETTINGS.fontFamily = name == "sans" ? CrossPointSettings::NOTOSANS : CrossPointSettings::NOTOSERIF;
-          SETTINGS.sdFontFamilyName[0] = '\0';
-        } else {
-          strncpy(SETTINGS.sdFontFamilyName, name.c_str(), sizeof(SETTINGS.sdFontFamilyName) - 1);
-          SETTINGS.sdFontFamilyName[sizeof(SETTINGS.sdFontFamilyName) - 1] = '\0';
-        }
-        SETTINGS.saveToFile();
-        logSerial.printf("FONT_OK\n");
-        silentRestart();
       } else if (cmd.startsWith("OPEN ")) {
         const String target = cmd.substring(5);
         if (target == "clock") {
@@ -870,6 +844,18 @@ void loop() {
               std::make_unique<BmpViewerActivity>(renderer, mappedInputManager, std::string(target.c_str())));
         } else if (target == "images") {
           activityManager.goToImages();
+        } else if (target == "weather") {
+          activityManager.goToWeather();
+        } else if (target == "games") {
+          activityManager.goToGames();
+        } else if (target == "2048") {
+          activityManager.replaceActivity(std::make_unique<Game2048Activity>(renderer, mappedInputManager));
+        } else if (target == "sudoku") {
+          activityManager.replaceActivity(std::make_unique<SudokuActivity>(renderer, mappedInputManager));
+        } else if (target == "mines") {
+          activityManager.replaceActivity(std::make_unique<MinesweeperActivity>(renderer, mappedInputManager));
+        } else if (target == "gomoku") {
+          activityManager.replaceActivity(std::make_unique<GomokuActivity>(renderer, mappedInputManager));
         } else if (target == "usb") {
           activityManager.goToUsbConnect();
         } else if (target == "settings") {

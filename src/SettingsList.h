@@ -238,9 +238,10 @@ inline std::vector<SettingInfo> getSettingsList(const SdCardFontRegistry* regist
         // --- Display ---
         SettingInfo::Enum(StrId::STR_SLEEP_SCREEN, &CrossPointSettings::sleepScreen, std::move(sleepScreenValues),
                           "sleepScreen", StrId::STR_CAT_DISPLAY),
-        SettingInfo::Enum(StrId::STR_POWER_OFF_SCREEN, &CrossPointSettings::powerOffScreen,
-                          {StrId::STR_IMAGES, StrId::STR_MEMOS, StrId::STR_DARK, StrId::STR_NONE_OPT}, "powerOffScreen",
-                          StrId::STR_CAT_DISPLAY),
+        SettingInfo::Enum(
+            StrId::STR_POWER_OFF_SCREEN, &CrossPointSettings::powerOffScreen,
+            {StrId::STR_IMAGES, StrId::STR_MEMOS, StrId::STR_DARK, StrId::STR_NONE_OPT, StrId::STR_WEATHER},
+            "powerOffScreen", StrId::STR_CAT_DISPLAY),
         SettingInfo::Enum(StrId::STR_SLEEP_COVER_MODE, &CrossPointSettings::sleepScreenCoverMode,
                           {StrId::STR_FIT, StrId::STR_CROP}, "sleepScreenCoverMode", StrId::STR_CAT_DISPLAY),
         SettingInfo::Enum(StrId::STR_SLEEP_COVER_FILTER, &CrossPointSettings::sleepScreenCoverFilter,

@@ -16,11 +16,15 @@ import argparse
 import email.parser
 import email.policy
 import json
+import locale
 import os
 import posixpath
+import ssl
 import sys
 import threading
+import time
 import urllib.parse
+import urllib.request
 import webbrowser
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -35,6 +39,67 @@ FIRMWARE_HTML = os.path.abspath(os.path.join(HERE, "..", "..", "..", "src", "net
 
 DEVICE = X4()
 FAILED = object()  # device_call result after it has already sent the error response
+
+
+def tls_context():
+    # python.org builds on macOS ship without trusted roots; certifi's bundle fixes that.
+    try:
+        import certifi
+        return ssl.create_default_context(cafile=certifi.where())
+    except ImportError:
+        return ssl.create_default_context()
+
+
+def fetch_json(url):
+    request = urllib.request.Request(url, headers={"User-Agent": "InkDesk"})
+    try:
+        with urllib.request.urlopen(request, timeout=15, context=tls_context()) as res:
+            return json.load(res)
+    except (OSError, ValueError) as e:
+        raise DeviceError(f"天气服务连接失败 / weather service unreachable: {e}")
+
+
+def refresh_weather():
+    """Fetches the weather on this computer and saves it on the X4, in the format
+    the device writes itself over Wi-Fi (src/util/Weather.cpp)."""
+    place = None
+    try:
+        loc = json.loads(DEVICE.get("/weather/location.json"))
+        if loc.get("mode") == "manual":
+            place = (loc.get("name", ""), loc["lat"], loc["lon"])
+    except (DeviceError, ValueError, KeyError):
+        pass  # no saved location: locate automatically
+    # Free IP geolocation services, tried in order (each rate-limits now and then).
+    zh = (locale.getlocale()[0] or "").lower().startswith("zh")
+    for url in ("https://ipwho.is/?fields=city,latitude,longitude" + ("&lang=zh-CN" if zh else ""),
+                "https://get.geojs.io/v1/ip/geo.json"):
+        if place is not None:
+            break
+        try:
+            ip = fetch_json(url)
+            lat, lon = float(ip["latitude"]), float(ip["longitude"])
+            if lat or lon:
+                place = (ip.get("city", ""), lat, lon)
+        except (DeviceError, KeyError, TypeError, ValueError):
+            pass
+    if place is None:
+        raise DeviceError("定位失败 / location lookup failed")
+    f = fetch_json(
+        f"https://api.open-meteo.com/v1/forecast?latitude={place[1]}&longitude={place[2]}"
+        "&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,weather_code,"
+        "wind_speed_10m,wind_direction_10m"
+        "&daily=sunrise,sunset,temperature_2m_max,temperature_2m_min,uv_index_max&timezone=auto&forecast_days=1")
+    c, d = f["current"], f["daily"]
+    now = {"city": place[0], "updated": int(time.time()), "code": c["weather_code"], "day": c["is_day"],
+           "temp": c["temperature_2m"], "feels": c["apparent_temperature"], "humidity": c["relative_humidity_2m"],
+           "wind": c["wind_speed_10m"], "windDir": c["wind_direction_10m"], "uv": d["uv_index_max"][0],
+           "tmax": d["temperature_2m_max"][0], "tmin": d["temperature_2m_min"][0],
+           "sunrise": d["sunrise"][0][11:16], "sunset": d["sunset"][0][11:16], "date": d["time"][0]}
+    try:
+        DEVICE.simple("MKDIR /weather", "MKDIR")
+    except DeviceError:
+        pass  # already there
+    DEVICE.put("/weather/now.json", json.dumps(now, ensure_ascii=False).encode("utf-8"))
 
 
 def join(directory, name):
@@ -108,6 +173,8 @@ class Handler(BaseHTTPRequestHandler):
             return self.send_page("MemoPage.html")
         if route == "/images":
             return self.send_page("ImagesPage.html")
+        if route == "/weather":
+            return self.send_page("WeatherPage.html")
         if route == "/api/settings":
             # Only the lock-screen mode is exposed over USB.
             value = self.device_call(lambda: DEVICE.query("SLEEPSCREEN", "SLEEPSCREEN"))
@@ -196,6 +263,10 @@ class Handler(BaseHTTPRequestHandler):
         if route == "/api/x4/sync-time":
             if self.device_call(DEVICE.sync_time) is not FAILED:
                 self.send_json({"ok": True})
+            return
+        if route == "/api/weather/refresh":
+            if self.device_call(refresh_weather) is not FAILED:
+                self.send_body(HTTPStatus.OK, "Weather updated")
             return
         self.send_body(HTTPStatus.NOT_FOUND, "not found")
 

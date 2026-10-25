@@ -19,6 +19,7 @@
 #include "clock/ClockActivity.h"
 #include "clock/MemoListActivity.h"
 #include "components/HeaderBackTapTarget.h"
+#include "games/GamesMenuActivity.h"
 #include "home/CrashActivity.h"
 #include "home/FileBrowserActivity.h"
 #include "home/HomeActivity.h"
@@ -34,6 +35,7 @@
 #include "util/BmpViewerActivity.h"
 #include "util/FrontlightPanelActivity.h"
 #include "util/FullScreenMessageActivity.h"
+#include "weather/WeatherActivity.h"
 
 static portMUX_TYPE activityManagerSpinlock = portMUX_INITIALIZER_UNLOCKED;
 
@@ -280,6 +282,10 @@ void ActivityManager::goToSettings() { replaceActivity(std::make_unique<Settings
 void ActivityManager::goToClock() { replaceActivity(std::make_unique<ClockActivity>(renderer, mappedInput)); }
 
 void ActivityManager::goToImages() { replaceActivity(std::make_unique<ImageGalleryActivity>(renderer, mappedInput)); }
+
+void ActivityManager::goToWeather() { replaceActivity(std::make_unique<WeatherActivity>(renderer, mappedInput)); }
+
+void ActivityManager::goToGames() { replaceActivity(std::make_unique<GamesMenuActivity>(renderer, mappedInput)); }
 
 void ActivityManager::goToUsbConnect() { replaceActivity(std::make_unique<UsbConnectActivity>(renderer, mappedInput)); }
 

@@ -25,6 +25,8 @@ enum class HomeMenuItem {
   CLOCK,
   MEMOS,
   IMAGES,
+  WEATHER,
+  GAMES,
   FILE_TRANSFER,
   SETTINGS_MENU
 };
@@ -99,6 +101,8 @@ class ActivityManager {
   void goToMemos();
   void goToUsbConnect();
   void goToImages();
+  void goToWeather();
+  void goToGames();
   void goToFileBrowser(std::string path = {});
   void goToLibrary();
   void goToBrowser();

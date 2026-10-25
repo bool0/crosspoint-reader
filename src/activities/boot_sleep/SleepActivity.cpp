@@ -606,6 +606,9 @@ void SleepActivity::renderPowerOffScreen() const {
       return renderDefaultSleepScreen();
     case CrossPointSettings::POWER_OFF_SCREEN::POWER_OFF_BLANK:
       return renderBlankSleepScreen();
+    case CrossPointSettings::POWER_OFF_SCREEN::POWER_OFF_WEATHER:
+      if (lockscreen::renderWeather(renderer)) return;
+      return renderDefaultSleepScreen();
     default:
       return renderDefaultSleepScreen();
   }

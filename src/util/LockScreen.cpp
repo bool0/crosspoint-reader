@@ -15,6 +15,7 @@
 #include <algorithm>
 
 #include "components/ClockFace.h"
+#include "components/WeatherFace.h"
 #include "fontIds.h"
 #include "util/MemoMarkdown.h"
 #include "util/MemoStore.h"
@@ -63,6 +64,21 @@ bool renderClock(GfxRenderer& renderer) {
   state.fastRefreshes = 0;
   state.orientation = static_cast<uint8_t>(renderer.getOrientation());
   state.magic = ARMED_MAGIC;
+  return true;
+}
+
+bool renderWeather(GfxRenderer& renderer) {
+  weather::Data data;
+  if (!weather::load(data)) return false;
+  int top = 0, right = 0, bottom = 0, left = 0;
+  renderer.getOrientedViewableTRBL(&top, &right, &bottom, &left);
+  constexpr int PAD = 20;
+  const int footerY = renderer.getScreenHeight() - bottom - renderer.getLineHeight(SMALL_FONT_ID) - 8;
+  renderer.clearScreen();
+  WeatherFace::draw(renderer, data, left + PAD, renderer.getScreenWidth() - left - right - 2 * PAD, top + 16,
+                    footerY - 8);
+  renderer.drawCenteredText(SMALL_FONT_ID, footerY, tr(STR_MEMO_POWERED_OFF_HINT));
+  renderer.displayBuffer(HalDisplay::HALF_REFRESH);
   return true;
 }
 

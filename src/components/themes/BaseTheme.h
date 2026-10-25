@@ -148,7 +148,8 @@ enum UIIcon {
   Usb,
   Blocks,
   Clock,
-  Memo
+  Memo,
+  Weather
 };
 
 // Default theme implementation (Classic Theme)

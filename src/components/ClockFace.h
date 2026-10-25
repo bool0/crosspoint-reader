@@ -3,13 +3,13 @@
 
 #pragma once
 
+#include <GfxRenderer.h>
+
 #include <ctime>
 #include <string>
 #include <vector>
 
 #include "util/MemoMarkdown.h"
-
-class GfxRenderer;
 
 // The clock screen layout: date line with battery, large time, the pinned memo
 // and a footer hint. Shared by ClockActivity and the clock lock screen, which
@@ -32,6 +32,10 @@ class ClockFace {
 
   // Clears the time band and draws hour:minute into it.
   static void drawTime(const GfxRenderer& renderer, Band band, int hour, int minute);
+
+  // Seven-segment number in the selected clock style (for other screens).
+  static int numberWidth(int height, int value);
+  static void drawNumber(const GfxRenderer& renderer, int x, int y, int height, int value, Color color = Color::Black);
 
   // Clears the battery slot on the date line and draws `percent` there.
   static void drawBattery(const GfxRenderer& renderer, int percent);

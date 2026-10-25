@@ -9,6 +9,8 @@
 
 #include <algorithm>
 #include <cstdio>
+#include <cstdlib>
+#include <string>
 
 #include "CrossPointSettings.h"
 #include "fontIds.h"
@@ -54,9 +56,9 @@ Color inkColor() { return ink() ? Color::Black : Color::White; }
 // Draws one digit in the selected style. The continuous styles overlap their
 // strokes at the joints so digits read as whole figures; Classic LCD keeps
 // visible gaps between separate segments.
-void drawDigit(const GfxRenderer& renderer, const int x, const int y, const int w, const int h, const int digit) {
+void drawDigit(const GfxRenderer& renderer, const int x, const int y, const int w, const int h, const int digit,
+               const Color color = inkColor()) {
   const uint8_t style = SETTINGS.clockFaceStyle;
-  const Color color = inkColor();
   const int divisor = style == CrossPointSettings::CLOCK_STYLE_THIN   ? 18
                       : style == CrossPointSettings::CLOCK_STYLE_BOLD ? 6
                       : style == CrossPointSettings::CLOCK_STYLE_LCD  ? 8
@@ -100,6 +102,28 @@ void drawDigit(const GfxRenderer& renderer, const int x, const int y, const int 
 }
 
 }  // namespace
+
+int ClockFace::numberWidth(const int height, const int value) {
+  const int digits = value == 0 ? 1 : static_cast<int>(std::to_string(std::abs(value)).size());
+  const int dw = static_cast<int>(height * DIGIT_W);
+  const int gap = static_cast<int>(height * DIGIT_GAP);
+  return (value < 0 ? dw + gap : 0) + digits * dw + (digits - 1) * gap;
+}
+
+void ClockFace::drawNumber(const GfxRenderer& renderer, int x, const int y, const int height, const int value,
+                           const Color color) {
+  const int dw = static_cast<int>(height * DIGIT_W);
+  const int gap = static_cast<int>(height * DIGIT_GAP);
+  if (value < 0) {
+    const int t = std::max(3, height / 10);
+    renderer.fillRoundedRect(x, y + (height - t) / 2, dw, t, t / 2, color);
+    x += dw + gap;
+  }
+  for (const char c : std::to_string(std::abs(value))) {
+    drawDigit(renderer, x, y, dw, height, c - '0', color);
+    x += dw + gap;
+  }
+}
 
 void ClockFace::loadMemo(GfxRenderer& renderer) {
   clearMemo();

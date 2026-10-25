@@ -284,7 +284,7 @@
   window.X4Serial = X4Serial;  // for tests
 
   // --- fetch() shim: the Wi-Fi server's routes, served over USB -------------
-  const ROUTE = /\/(api\/files|api\/settings|download|upload|delete|mkdir|rename|move|api\/status|api\/x4\/status|api\/x4\/sync-time)$/;
+  const ROUTE = /\/(api\/files|api\/settings|download|upload|delete|mkdir|rename|move|api\/status|api\/x4\/status|api\/x4\/sync-time|api\/weather\/refresh)$/;
   const realFetch = window.fetch.bind(window);
   const join = (dir, name) => (dir.endsWith('/') ? dir : dir + '/') + name;
   const dirname = (p) => p.replace(/\/[^/]*$/, '') || '/';
@@ -353,12 +353,65 @@
         case 'api/x4/sync-time':
           await x4.syncTime();
           return reply('{"ok":true}', 'application/json');
+        case 'api/weather/refresh':
+          await refreshWeather();
+          return reply('Weather updated');
       }
     } catch (e) {
       return new Response(String(e.message || e), { status: 503 });
     }
     return realFetch(input, init);
   };
+
+  // --- weather ---------------------------------------------------------------
+  // Same reading the device writes when it fetches over Wi-Fi (src/util/Weather.cpp),
+  // fetched here by the computer, whose network location stands in for the X4's.
+  async function refreshWeather() {
+    let place = null;
+    try {
+      const loc = JSON.parse(new TextDecoder().decode(await x4.get('/weather/location.json')));
+      if (loc.mode === 'manual' && typeof loc.lat === 'number') place = { name: loc.name || '', lat: loc.lat, lon: loc.lon };
+    } catch (e) { /* no saved location: locate automatically */ }
+    // Free IP geolocation services, tried in order (each rate-limits now and then).
+    const zh = (navigator.language || '').toLowerCase().startsWith('zh');
+    for (const url of ['https://ipwho.is/?fields=city,latitude,longitude' + (zh ? '&lang=zh-CN' : ''), 'https://get.geojs.io/v1/ip/geo.json']) {
+      if (place) break;
+      try {
+        const ip = await (await realFetch(url)).json();
+        const lat = Number(ip.latitude), lon = Number(ip.longitude);
+        if (Number.isFinite(lat) && Number.isFinite(lon) && (lat || lon)) place = { name: ip.city || '', lat, lon };
+      } catch (e) { /* try the next service */ }
+    }
+    if (!place) throw new Error('location lookup failed');
+    const url = 'https://api.open-meteo.com/v1/forecast?latitude=' + place.lat + '&longitude=' + place.lon +
+      '&current=temperature_2m,relative_humidity_2m,apparent_temperature,is_day,weather_code,wind_speed_10m,wind_direction_10m' +
+      '&daily=sunrise,sunset,temperature_2m_max,temperature_2m_min,uv_index_max&timezone=auto&forecast_days=1';
+    const res = await realFetch(url);
+    if (!res.ok) throw new Error('weather service: ' + res.status);
+    const f = await res.json();
+    const c = f.current, d = f.daily;
+    const clock = (iso) => String(iso || '').slice(11, 16);
+    const now = {
+      city: place.name, updated: Math.round(Date.now() / 1000), code: c.weather_code, day: c.is_day,
+      temp: c.temperature_2m, feels: c.apparent_temperature, humidity: c.relative_humidity_2m,
+      wind: c.wind_speed_10m, windDir: c.wind_direction_10m, uv: d.uv_index_max[0],
+      tmax: d.temperature_2m_max[0], tmin: d.temperature_2m_min[0], sunrise: clock(d.sunrise[0]), sunset: clock(d.sunset[0]),
+      date: d.time[0],
+    };
+    await x4.simple('MKDIR /weather', 'MKDIR').catch(() => {});
+    await x4.put('/weather/now.json', new TextEncoder().encode(JSON.stringify(now)));
+    window.dispatchEvent(new Event('x4-weather'));
+  }
+  // Every USB connection refreshes the weather, like every Wi-Fi join does on the device.
+  // Switching pages reconnects, so a refresh within the last 10 minutes is enough.
+  window.addEventListener('x4-connected', () => {
+    let last = 0;
+    try { last = Number(localStorage.getItem('x4-weather-at')) || 0; } catch (e) { /* storage blocked */ }
+    if (Date.now() - last < 10 * 60 * 1000) return;
+    refreshWeather().then(() => {
+      try { localStorage.setItem('x4-weather-at', String(Date.now())); } catch (e) { /* storage blocked */ }
+    }).catch((e) => console.warn('weather:', e));
+  });
 
   // --- connection bar --------------------------------------------------------
   function mountBar() {

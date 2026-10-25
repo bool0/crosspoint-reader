@@ -37,6 +37,7 @@ class CrossPointSettings : public PersistableStore<CrossPointSettings> {
     POWER_OFF_MEMO,
     POWER_OFF_DEFAULT,
     POWER_OFF_BLANK,
+    POWER_OFF_WEATHER,  // appended so saved settings keep their meaning
     POWER_OFF_SCREEN_COUNT
   };
   enum SLEEP_SCREEN_COVER_FILTER {

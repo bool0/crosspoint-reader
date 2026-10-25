@@ -27,6 +27,7 @@
 #include "components/icons/settings2.h"
 #include "components/icons/transfer.h"
 #include "components/icons/usb.h"
+#include "components/icons/weather.h"
 #include "components/icons/wifi.h"
 #include "fontIds.h"
 
@@ -72,6 +73,8 @@ const uint8_t* iconForName(UIIcon icon) {
       return UsbIcon;
     case UIIcon::Image:
       return ImageIcon;
+    case UIIcon::Weather:
+      return WeatherIcon;
     default:
       return nullptr;
   }
@@ -324,11 +327,13 @@ void LyraTheme::drawEmptyRecents(const GfxRenderer& renderer, const Rect rect) c
 void LyraTheme::drawButtonMenu(GfxRenderer& renderer, Rect rect, int buttonCount, int selectedIndex,
                                const std::function<std::string(int index)>& buttonLabel,
                                const std::function<UIIcon(int index)>& rowIcon) const {
+  // Rows tighten when there are more than fit, so the last one never hides behind the button hints.
+  const int fullPitch = LyraMetrics::values.menuRowHeight + LyraMetrics::values.menuSpacing;
+  const int pitch = buttonCount > 0 ? std::min(fullPitch, rect.height / buttonCount) : fullPitch;
+  const int rowHeight = std::min(LyraMetrics::values.menuRowHeight, pitch - 2);
   for (int i = 0; i < buttonCount; ++i) {
     int tileWidth = rect.width - LyraMetrics::values.contentSidePadding * 2;
-    Rect tileRect = Rect{rect.x + LyraMetrics::values.contentSidePadding,
-                         rect.y + i * (LyraMetrics::values.menuRowHeight + LyraMetrics::values.menuSpacing), tileWidth,
-                         LyraMetrics::values.menuRowHeight};
+    Rect tileRect = Rect{rect.x + LyraMetrics::values.contentSidePadding, rect.y + i * pitch, tileWidth, rowHeight};
 
     const bool selected = selectedIndex == i;
 
@@ -340,7 +345,7 @@ void LyraTheme::drawButtonMenu(GfxRenderer& renderer, Rect rect, int buttonCount
     const char* label = labelStr.c_str();
     int textX = tileRect.x + 16;
     const int lineHeight = renderer.getLineHeight(UI_12_FONT_ID);
-    const int textY = tileRect.y + (LyraMetrics::values.menuRowHeight - lineHeight) / 2;
+    const int textY = tileRect.y + (rowHeight - lineHeight) / 2;
 
     if (rowIcon != nullptr) {
       UIIcon icon = rowIcon(i);
