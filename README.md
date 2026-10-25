@@ -96,6 +96,44 @@ python3 lib/EpdFont/scripts/fontconvert_sdcard.py \
 
 字体文件可以通过网页版的「文件」页上传，也可以用 `tools/inkdesk/push_file.py` 通过 USB 传输。
 
+## 天气和游戏怎么用
+
+X4 正面四个按键依次是 **返回 / 确认 / 左 / 右**，侧面两个按键是 **上 / 下**（按键可在设置中重新映射，以屏幕底部的提示为准）。
+
+### 天气
+
+1. **获取天气**（任选一种，之后每次连接都会自动刷新）：
+   - **Wi-Fi**：主页 → 文件传输 → 加入网络，连上后 X4 会自己获取天气（连接时多等几秒）。
+   - **USB**：用数据线连接电脑，用 Chrome / Edge 打开 `InkDesk.html` 并点「连接 X4」，电脑会获取天气并存到 X4（10 分钟内重复连接不会重复获取）。
+2. **查看**：主页 → **天气**。屏幕上依次是城市、当地日期、天气图标和温度、天气状况，以及体感温度、最高 / 最低、湿度、风、紫外线（今日最高）、日出、日落；最下方是更新时间。
+3. **设置城市**（可选）：打开网页的「天气」页（Wi-Fi 下为 `http://<X4 的 IP>/weather`，USB 下为 `InkDesk.html` 顶部的「天气」）：
+   - 输入城市名并搜索，点选结果即保存并立即刷新；
+   - 点「改用自动定位」恢复按网络位置定位（精确到城市）；
+   - 「立即刷新」随时更新一次。
+4. **作为关机画面**：设置 → 显示 → **关机画面** 选「天气」，之后按住电源键 3 秒关机时，屏幕会保留最近一次的天气。
+
+> 设备只会请求天气和定位服务，它们只能看到网络的 IP 地址。免费的 Open-Meteo 接口仅限非商业用途。
+
+### 游戏
+
+主页 → **游戏**，选择一个游戏。所有游戏通用：
+
+| 操作 | 作用 |
+|---|---|
+| 左 / 右 / 上 / 下 | 移动光标（2048 中为滑动方向） |
+| 返回 | 回到游戏列表，进度自动保存，下次进入继续 |
+| 按住返回 | 开始新的一局 |
+| 游戏结束后按确认 | 再来一局 |
+
+| 游戏 | 玩法 |
+|---|---|
+| **2048** | 左 / 右 / 上 / 下 滑动所有方块，相同数字相撞合并；方块越深数字越大，凑出 2048。顶部显示分数和最高分 |
+| **数独** | 每局随机生成一道唯一解的题。移到空格按 **确认** 打开数字栏，左 / 右选择 1–9 或「清除」，再按确认填入（返回取消）。自己填的数字带下划线，与同行 / 列 / 宫冲突的格子显示为灰色 |
+| **扫雷** | 9×12 格、18 个雷。按 **确认** 翻开格子（第一格一定安全）；**按住确认** 插旗或拔旗；在已翻开的数字上按确认，若周围旗数已够，会自动翻开其余邻格 |
+| **五子棋** | 15×15 棋盘，你执黑先行，按 **确认** 落子，设备随即应对（白子，最近一步带圆点）。横、竖、斜先连成五子者胜 |
+
+墨水屏刷新较慢，所以游戏都是回合制：每走一步刷新一次，每 12 步做一次完整刷新以消除残影。
+
 ## 使用工具
 
 | 工具 | 用途 |
@@ -150,5 +188,9 @@ InkDesk is a fork of [CrossPoint Reader](https://github.com/crosspoint-reader/cr
 - turn-based games for e-ink: 2048, Sudoku, Minesweeper and Gomoku
 - a hold-to-power-off power button
 - USB management from Chrome / Edge via Web Serial
+
+**Weather:** join Wi-Fi (File Transfer > Join a Network) or connect `InkDesk.html` over USB and the weather refreshes by itself; open Home > Weather to see it. Set a city on the web app's Weather page, or pick Weather under Settings > Display > Power-off Screen.
+
+**Games:** Home > Games. The arrow buttons move (or slide, in 2048), Confirm acts, Back returns to the list with the game saved, and holding Back starts a new game. In Sudoku, Confirm opens a 1-9 picker; in Minesweeper, hold Confirm to flag; in Gomoku you play black against the device.
 
 New code is Apache-2.0, CrossPoint-derived code stays MIT, and firmware binaries are GPL-3.0 because they link wolfSSL; see [NOTICE](NOTICE) and [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md). Build with pioarduino PlatformIO: `pio run -e default -t upload`.
